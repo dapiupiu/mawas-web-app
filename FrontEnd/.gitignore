@@ -1,5 +1,31 @@
+# ==========================================
+# Dependencies
+# ==========================================
+node_modules/
+.pnpm-store/
+
+# ==========================================
+# Build / Output
+# ==========================================
+dist/
+dist-ssr/
+build/
+out/
+coverage/
+*.tsbuildinfo
+
+# ==========================================
+# Environment / Secrets
+# ==========================================
+.env
+.env.*
+!.env.example
+!.env.template
+
+# ==========================================
 # Logs
-logs
+# ==========================================
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,18 +33,117 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# ==========================================
+# Local / Temporary Files
+# ==========================================
 *.local
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
 
-# Editor directories and files
+# ==========================================
+# OS Files
+# ==========================================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==========================================
+# IDE / Editor
+# ==========================================
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+!.vscode/settings.example.json
+
+.idea/
+*.iml
+
+# Visual Studio
+.vs/
 *.suo
-*.ntvs*
+*.user
+*.userosscache
+*.sln.docstates
 *.njsproj
-*.sln
-*.sw?
+*.ntvs*
+*.ntvs_analysis.dat
+
+# ==========================================
+# AI Coding Agents / Local Agent Data
+# ==========================================
+# Jangan commit hasil/cache lokal agent
+.agents/
+.gemini/
+.hermes/
+.claude/
+.cursor/
+.copilot/
+.windsurf/
+
+# Agent temporary / local instructions
+AGENTS.local.md
+AGENT.local.md
+
+# ==========================================
+# AI / MCP / Local Tool Data
+# ==========================================
+.mcp/
+.mcp.json
+.ai/
+.ai-cache/
+.ai-data/
+
+# ==========================================
+# Testing / Reports
+# ==========================================
+playwright-report/
+test-results/
+.nyc_output/
+
+# ==========================================
+# Cache
+# ==========================================
+.cache/
+.parcel-cache/
+.vite/
+.turbo/
+.eslintcache
+
+# ==========================================
+# Package Manager
+# ==========================================
+.npm/
+.yarn/
+.yarn-cache/
+
+# ==========================================
+# Generated Files
+# ==========================================
+*.generated.*
+*.generated.ts
+*.generated.js
+
+# ==========================================
+# Local Database / Storage
+# ==========================================
+*.sqlite
+*.sqlite3
+*.db
+
+# ==========================================
+# Certificates / Keys
+# ==========================================
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# ==========================================
+# Temporary Backups
+# ==========================================
+*.orig
+*.rej
