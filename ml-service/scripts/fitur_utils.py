@@ -1,4 +1,5 @@
 """Fungsi pembuatan fitur dan target untuk tabel training Mawas."""
+
 import pandas as pd
 
 
@@ -15,4 +16,17 @@ def tambah_target_dan_lag_fapar(df, horizon=3, lags=(1, 2, 3)):
     for k in lags:
         df[f"fapar_lag{k}"] = g.shift(k)
     df[f"target_fapar_t{horizon}"] = g.shift(-horizon)
+    return df
+
+
+def tambah_lag(df, kolom, lags=(1, 2, 3)):
+    """Tambahkan {kolom}_lag{k}: nilai k dekad SEBELUMNYA, per kabupaten.
+
+    shift(k) positif = masa lalu, jadi tidak ada kebocoran.
+    Prasyarat sama dengan fungsi sebelumnya: dekad berurutan tanpa lubang.
+    """
+    df = df.sort_values(["KDPKAB", "tanggal"]).copy()
+    g = df.groupby("KDPKAB")[kolom]
+    for k in lags:
+        df[f"{kolom}_lag{k}"] = g.shift(k)
     return df
