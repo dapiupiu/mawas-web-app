@@ -4,6 +4,7 @@ import json
 from rasterio.features import geometry_mask
 import numpy as np
 import rasterio
+import pandas as pd
 
 
 def baca_fapar(path):
@@ -85,3 +86,25 @@ def buat_mask_kabupaten(geojson_path, transform, shape):
             metode = "all_touched"
         hasil[kode] = (mask, metode)
     return hasil
+
+
+def hitung_zonal(arr_bersih, masks):
+    """Rata-rata FAPAR per kabupaten dari satu array yang sudah dibersihkan.
+
+    Kembalikan DataFrame: KDPKAB, fapar_mean, n_piksel, n_valid, metode_mask.
+    fapar_mean = NaN jika tidak ada piksel valid di dalam kabupaten.
+    """
+    baris = []
+    for kode, (mask, metode) in masks.items():
+        nilai = arr_bersih[mask]
+        valid = nilai[~np.isnan(nilai)]
+        baris.append(
+            {
+                "KDPKAB": kode,
+                "fapar_mean": float(valid.mean()) if valid.size > 0 else np.nan,
+                "n_piksel": int(mask.sum()),
+                "n_valid": int(valid.size),
+                "metode_mask": metode,
+            }
+        )
+    return pd.DataFrame(baris)
