@@ -56,11 +56,12 @@ def buat_mask_kabupaten(geojson_path, transform, shape):
     return hasil
 
 
-def buat_mask_kabupaten(geojson_path, transform, shape):
+def buat_mask_kabupaten(geojson_path, transform, shape, paksa_all_touched=False):
     """Buat mask boolean per kabupaten. Kembalikan dict: KDPKAB -> (mask, metode).
 
-    Default: piksel masuk jika titik tengahnya di dalam poligon.
-    Jika hasilnya 0 piksel (poligon sangat kecil), ulangi dengan all_touched=True.
+    Default: piksel masuk jika titik tengahnya di dalam poligon; jika hasilnya
+    0 piksel, ulangi dengan all_touched=True.
+    paksa_all_touched=True: langsung pakai all_touched untuk semua kabupaten.
     """
     with open(geojson_path, encoding="utf-8") as f:
         fitur = json.load(f)["features"]
@@ -72,21 +73,23 @@ def buat_mask_kabupaten(geojson_path, transform, shape):
             continue
         kode = ft["properties"]["KDPKAB"]
 
-        # invert=True -> True berarti DI DALAM poligon
-        mask = geometry_mask([geom], out_shape=shape, transform=transform, invert=True)
-        metode = "titik_tengah"
-        if mask.sum() == 0:
+        if paksa_all_touched:
             mask = geometry_mask(
-                [geom],
-                out_shape=shape,
-                transform=transform,
-                invert=True,
-                all_touched=True,
+                [geom], out_shape=shape, transform=transform,
+                invert=True, all_touched=True,
             )
             metode = "all_touched"
+        else:
+            mask = geometry_mask([geom], out_shape=shape, transform=transform, invert=True)
+            metode = "titik_tengah"
+            if mask.sum() == 0:
+                mask = geometry_mask(
+                    [geom], out_shape=shape, transform=transform,
+                    invert=True, all_touched=True,
+                )
+                metode = "all_touched"
         hasil[kode] = (mask, metode)
     return hasil
-
 
 def hitung_zonal(arr_bersih, masks):
     """Rata-rata FAPAR per kabupaten dari satu array yang sudah dibersihkan.
