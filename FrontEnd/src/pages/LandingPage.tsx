@@ -1,33 +1,223 @@
-import { ArrowDown, ArrowUpRight, CircleAlert, Database, Mail, Route, ShieldCheck } from "lucide-react"
+import { ArrowDown, ArrowUpRight, CircleAlert, Database, Mail, Route } from "lucide-react"
 import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { FAQ } from "@/components/landing/FAQ"
+import { InterventionSection } from "@/components/landing/InterventionSection"
+import { MethodologySection } from "@/components/landing/MethodologySection"
+import { PillarsSection } from "@/components/landing/PillarsSection"
 import { Reveal } from "@/components/landing/Reveal"
 import { RiskMapPreview } from "@/components/landing/RiskMapPreview"
+import { RoadmapSection } from "@/components/landing/RoadmapSection"
+import { SectionProgressRail } from "@/components/landing/SectionProgressRail"
 import { SiteHeader } from "@/components/landing/SiteHeader"
 
 const steps = [
-  { number: "01", title: "Kumpulkan indikator", body: "Sistem menggabungkan indikator vegetasi, curah hujan, dan data historis yang tersedia.", icon: Database },
-  { number: "02", title: "Baca tingkat risiko", body: "Indikator diolah menjadi informasi risiko agar wilayah yang perlu perhatian lebih mudah dikenali.", icon: CircleAlert },
-  { number: "03", title: "Dukung tindakan", body: "Hasilnya membantu pemangku kepentingan menentukan prioritas tindak lanjut di wilayah terkait.", icon: Route },
+  {
+    number: "01",
+    title: "Agregasi indikator satelit",
+    body: "Sistem mengumpulkan data anomali penyerapan vegetasi (FAPAR HDX/JRC) dan variabel iklim historis.",
+    icon: Database
+  },
+  {
+    number: "02",
+    title: "Estimasi risiko 30 hari",
+    body: "Data diolah menjadi estimasi tingkat stres vegetasi per kabupaten sebagai indikator awal kekeringan pertanian.",
+    icon: CircleAlert
+  },
+  {
+    number: "03",
+    title: "Dukung mitigasi lapangan",
+    body: "Menyediakan sinyal dini bagi dinas pertanian dan pemangku kepentingan untuk intervensi irigasi atau pompanisasi.",
+    icon: Route
+  }
 ]
+const copyrightYear = new Date().getFullYear()
 
 export function LandingPage() {
-  return <div className="min-h-screen overflow-x-clip bg-[#f5f1e8] text-[#173e32]">
-    <a href="#konten" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-[#173e32] focus:px-4 focus:py-3 focus:text-[#f5f1e8]">Lewati ke konten</a>
-    <SiteHeader />
-    <main id="konten">
-      <section id="beranda" className="relative border-b border-[#173e32]/10 px-5 pb-16 pt-14 sm:px-8 sm:pb-24 sm:pt-20"><div className="contour-field pointer-events-none absolute inset-0 opacity-60" aria-hidden="true" /><div className="relative mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-center"><Reveal><div className="max-w-xl"><p className="mb-5 text-sm font-semibold text-[#557267]">Pemantauan pangan berbasis data</p><h1 className="text-balance font-serif text-5xl leading-[0.98] tracking-[-0.045em] text-[#173e32] sm:text-6xl lg:text-7xl">Kenali risiko pangan, sebelum krisis terjadi.</h1><p className="mt-7 max-w-lg text-pretty text-lg leading-8 text-[#36564a]">Mawas menyajikan informasi risiko gagal panen dan status intervensi wilayah dalam satu ruang baca yang terbuka untuk publik.</p><div className="mt-9 flex flex-col gap-3 sm:flex-row"><Button asChild className="h-12 bg-[#173e32] px-5 text-[#f5f1e8] hover:bg-[#245542]"><Link to="/peta-risiko">Jelajahi peta risiko <ArrowUpRight /></Link></Button><Button asChild variant="outline" className="h-12 border-[#173e32]/25 bg-transparent px-5 text-[#173e32] hover:bg-[#dce7d7]"><a href="#cara-kerja">Pelajari cara kerja <ArrowDown /></a></Button></div></div></Reveal><Reveal><RiskMapPreview /></Reveal></div></section>
-      <section id="peta-risiko" className="bg-[#173e32] px-5 py-16 text-[#f5f1e8] sm:px-8 sm:py-24"><div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.75fr_1.25fr] lg:items-end"><Reveal><div><p className="text-sm font-semibold text-[#b9d0a8]">Informasi publik</p><h2 className="mt-4 max-w-md font-serif text-4xl leading-tight tracking-[-0.03em] sm:text-5xl">Mulai dari peta, lalu dalami konteks wilayah.</h2><Button asChild variant="outline" className="mt-7 h-11 border-[#b9d0a8]/50 bg-transparent px-5 text-[#f5f1e8] hover:bg-[#f5f1e8] hover:text-[#173e32]"><Link to="/peta-risiko">Buka peta penuh <ArrowUpRight /></Link></Button></div></Reveal><Reveal><div className="border-l-2 border-[#b97a16] pl-5 text-lg leading-8 text-[#dbe7d5]">Peta lengkap dirancang sebagai ruang baca publik. Ketika integrasi data siap, pengunjung dapat membaca indikator risiko dan status intervensi tanpa perlu masuk.</div></Reveal></div></section>
-      <section id="cara-kerja" className="px-5 py-16 sm:px-8 sm:py-24"><div className="mx-auto max-w-7xl"><Reveal><div className="grid gap-5 border-b border-[#173e32]/15 pb-8 md:grid-cols-2 md:items-end"><div><p className="text-sm font-semibold text-[#557267]">Alur informasi</p><h2 className="mt-3 font-serif text-4xl tracking-[-0.03em] sm:text-5xl">Data yang dapat dibaca, untuk tindakan yang lebih terarah.</h2></div><p className="max-w-md text-sm leading-6 text-[#36564a]">Setiap tahap menjelaskan peran Mawas. Nilai dan prediksi hanya akan ditampilkan setelah sumber data terhubung dan tervalidasi.</p></div></Reveal><div className="grid gap-0 md:grid-cols-3">{steps.map((step) => <Reveal key={step.number}><article className="group border-b border-[#173e32]/15 py-8 md:border-b-0 md:px-7 md:first:pl-0 md:not(:last-child):border-r"><div className="flex items-start justify-between"><span className="font-serif text-2xl text-[#b97a16]">{step.number}</span><step.icon className="size-6 text-[#557267]" /></div><h3 className="mt-12 text-xl font-semibold">{step.title}</h3><p className="mt-3 max-w-xs text-sm leading-6 text-[#36564a]">{step.body}</p></article></Reveal>)}</div></div></section>
-      <section id="intervensi" className="bg-[#dce7d7] px-5 py-16 sm:px-8 sm:py-24"><div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center"><Reveal><div><p className="text-sm font-semibold text-[#557267]">Dari risiko ke respons</p><h2 className="mt-3 font-serif text-4xl tracking-[-0.03em] sm:text-5xl">Pantau apa yang sudah ditindaklanjuti.</h2><p className="mt-5 max-w-lg text-base leading-7 text-[#36564a]">Mawas tidak berhenti pada pembacaan risiko. Status intervensi memberi konteks atas tindakan yang tercatat di suatu wilayah.</p></div></Reveal><Reveal><Card className="border-0 bg-[#f5f1e8] py-0 shadow-[0_18px_44px_rgba(23,62,50,0.10)]"><CardContent className="p-6 sm:p-8"><div className="flex items-center gap-3"><ShieldCheck className="size-6 text-[#557267]" /><div><h3 className="font-semibold">Status intervensi</h3><p className="text-sm text-[#557267]">Menunggu koneksi sumber data</p></div></div><div className="mt-8 border-t border-[#173e32]/10 pt-5 text-sm leading-6 text-[#36564a]"><p>Belum ada catatan intervensi untuk ditampilkan pada pratinjau ini.</p><p className="mt-2">Saat data tersedia, status seperti direncanakan, berjalan, atau selesai akan mengikuti data backend.</p></div></CardContent></Card></Reveal></div></section>
-      <section id="pertanyaan" className="px-5 py-16 sm:px-8 sm:py-24"><div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.7fr_1.3fr]"><Reveal><div><p className="text-sm font-semibold text-[#557267]">Pertanyaan umum</p><h2 className="mt-3 font-serif text-4xl tracking-[-0.03em] sm:text-5xl">Informasi yang perlu diketahui sebelum membaca peta.</h2></div></Reveal><Reveal><FAQ /></Reveal></div></section>
-    </main>
-    <footer className="bg-[#173e32] px-5 pb-7 pt-14 text-[#f5f1e8] sm:px-8 sm:pt-16"><div className="mx-auto max-w-7xl"><div className="grid gap-12 border-b border-[#f5f1e8]/15 pb-12 lg:grid-cols-[1.25fr_0.7fr_0.7fr_0.9fr]"><div><div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-full bg-[#dce7d7] text-[#173e32]" aria-hidden="true"><svg viewBox="0 0 32 32" className="size-7" fill="none"><path d="M5 23c4-9 8-11 13-15 0 7-2 12-8 17" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /><path d="M9 25c5-2 10-1 15-7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg></span><span className="text-lg font-semibold tracking-tight">Mawas</span></div><p className="mt-5 max-w-sm text-sm leading-6 text-[#dbe7d5]">Ruang baca publik untuk memahami risiko pangan dan konteks intervensi wilayah.</p><div className="mt-6 flex items-start gap-3 text-sm text-[#dbe7d5]"><Mail className="mt-0.5 size-4 shrink-0" /><p><span className="block text-xs font-semibold text-[#b9d0a8]">Email proyek</span><span className="mt-1 block">[EMAIL PROYEK]</span></p></div></div><FooterColumn title="Jelajahi"><Link to="/peta-risiko">Peta risiko publik</Link><a href="#cara-kerja">Cara kerja</a><a href="#intervensi">Status intervensi</a><a href="#pertanyaan">Pertanyaan umum</a></FooterColumn><FooterColumn title="Akses"><Link to="/signin">Masuk operator</Link><Link to="/signup">Daftarkan akun</Link><span>Hak akses mengikuti peran akun</span></FooterColumn><FooterColumn title="Data dan informasi"><span>Sumber data akan ditambahkan</span><span>Pembaruan data menunggu API</span><span>Peta publik bersifat baca-saja</span></FooterColumn></div><div className="flex flex-col justify-between gap-3 pt-6 text-xs text-[#b9d0a8] sm:flex-row"><p>© {new Date().getFullYear()} Mawas. Informasi publik untuk pemantauan pangan.</p><p>Logo dan email masih berupa placeholder proyek.</p></div></div></footer>
-  </div>
+  return (
+    <div className="min-h-screen overflow-x-clip bg-[#f5f1e8] text-[#173e32]">
+      <a
+        href="#konten"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-[#173e32] focus:px-4 focus:py-3 focus:text-[#f5f1e8]"
+      >
+        Lewati ke konten
+      </a>
+      <SiteHeader />
+      <SectionProgressRail />
+      <main id="konten">
+        <section id="beranda" className="relative border-b border-[#173e32]/10 px-4 pb-14 pt-12 sm:px-6 sm:pb-20 sm:pt-16 lg:px-8 lg:pb-24 lg:pt-20">
+          <div className="contour-field pointer-events-none absolute inset-0 opacity-60" aria-hidden="true" />
+          <div className="relative mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+            <Reveal>
+              <div className="max-w-xl">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#557267]">
+                  Sistem Peringatan Dini Risiko Kekeringan Pertanian
+                </p>
+                <h1 className="mt-3 text-balance font-serif text-3xl leading-[1.08] tracking-[-0.04em] text-[#173e32] sm:text-5xl lg:text-6xl">
+                  Deteksi dini stres vegetasi, kawal ketersediaan pangan.
+                </h1>
+                <p className="mt-5 max-w-lg text-pretty text-sm leading-relaxed text-[#36564a] sm:text-base sm:leading-7">
+                  Mawas memprediksi risiko stres vegetasi/kekeringan pertanian per kabupaten untuk 30 hari ke depan, sebagai indikator awal ancaman terhadap ketersediaan (produksi) pangan dan dukungan bagi swasembada.
+                </p>
+                <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                  <Button asChild className="min-h-11 bg-[#173e32] px-6 text-[#f5f1e8] hover:bg-[#245542] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b97a16]">
+                    <Link to="/peta-risiko">
+                      Jelajahi peta risiko <ArrowUpRight className="ml-1" />
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" className="min-h-11 border-[#173e32]/25 bg-transparent px-5 text-[#173e32] hover:bg-[#dce7d7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b97a16]">
+                    <a href="#pilar-pangan">
+                      Pelajari fokus MVP <ArrowDown className="ml-1" />
+                    </a>
+                  </Button>
+                </div>
+              </div>
+            </Reveal>
+            <Reveal>
+              <RiskMapPreview />
+            </Reveal>
+          </div>
+        </section>
+
+        <PillarsSection />
+        <MethodologySection />
+
+        <section id="peta-risiko" className="bg-[#173e32] px-4 py-14 text-[#f5f1e8] sm:px-6 sm:py-20 lg:px-8 lg:py-24">
+          <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-end">
+            <Reveal>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#b9d0a8]">Ruang baca publik</p>
+                <h2 className="mt-3 max-w-md font-serif text-3xl leading-tight tracking-[-0.03em] sm:text-4xl lg:text-5xl">
+                  Mulai dari peta risiko, lalu dalami kondisi vegetasi wilayah.
+                </h2>
+                <Button asChild variant="outline" className="mt-6 min-h-11 border-[#b9d0a8]/50 bg-transparent px-5 text-[#f5f1e8] hover:bg-[#f5f1e8] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b97a16]">
+                  <Link to="/peta-risiko">Buka peta penuh <ArrowUpRight className="ml-1" /></Link>
+                </Button>
+              </div>
+            </Reveal>
+            <Reveal>
+              <div className="border-l-2 border-[#b97a16] pl-5 text-sm leading-relaxed text-[#dbe7d5] sm:text-base sm:leading-7">
+                Peta dirancang terbuka untuk publik tanpa batas login. Masyarakat, kelompok tani, dan akademisi dapat melihat indikator anomali stres vegetasi per kabupaten serta catatan rencana mitigasi di wilayah terkait secara transparan.
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
+        <section id="cara-kerja" className="px-4 py-14 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
+          <div className="mx-auto max-w-7xl">
+            <Reveal>
+              <div className="grid gap-4 border-b border-[#173e32]/15 pb-8 md:grid-cols-2 md:items-end">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#557267]">Alur informasi</p>
+                  <h2 className="mt-2 font-serif text-3xl tracking-[-0.03em] sm:text-4xl lg:text-5xl">
+                    Data satelit yang terukur, untuk tindakan mitigasi terarah.
+                  </h2>
+                </div>
+                <p className="max-w-md text-xs leading-relaxed text-[#36564a] sm:text-sm sm:leading-6">
+                  Tahapan sistematis Mawas dalam mengubah anomali penginderaan jauh menjadi keputusan mitigasi kekeringan sebelum kapasitas panen terganggu.
+                </p>
+              </div>
+            </Reveal>
+            <div className="grid gap-0 md:grid-cols-3">
+              {steps.map((step) => (
+                <Reveal key={step.number}>
+                  <article className="group border-b border-[#173e32]/15 py-8 md:border-b-0 md:px-7 md:first:pl-0 md:not(:last-child):border-r">
+                    <div className="flex items-start justify-between">
+                      <span className="font-serif text-2xl text-[#b97a16]">{step.number}</span>
+                      <step.icon className="size-5 text-[#557267]" />
+                    </div>
+                    <h3 className="mt-8 text-lg font-semibold text-[#173e32]">{step.title}</h3>
+                    <p className="mt-2.5 max-w-xs text-xs leading-5 text-[#36564a] sm:text-sm sm:leading-6">{step.body}</p>
+                  </article>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <InterventionSection />
+        <RoadmapSection />
+
+        <section id="pertanyaan" className="px-4 py-14 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
+          <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.7fr_1.3fr]">
+            <Reveal>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#557267]">Pertanyaan umum</p>
+                <h2 className="mt-2 font-serif text-3xl tracking-[-0.03em] sm:text-4xl lg:text-5xl">
+                  Konteks dan dasar ilmiah sebelum membaca peta.
+                </h2>
+                <p className="mt-4 text-xs leading-relaxed text-[#36564a] sm:text-sm sm:leading-6">
+                  Pertanyaan seputar metodologi FAPAR, batasan klaim model, ruang lingkup MVP, serta transparansi data publik Mawas.
+                </p>
+              </div>
+            </Reveal>
+            <Reveal>
+              <FAQ />
+            </Reveal>
+          </div>
+        </section>
+      </main>
+
+      <footer className="bg-[#173e32] px-4 pb-7 pt-12 text-[#f5f1e8] sm:px-6 sm:pt-16 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-10 border-b border-[#f5f1e8]/15 pb-10 lg:grid-cols-[1.25fr_0.7fr_0.7fr_0.9fr]">
+            <div>
+              <div className="flex items-center gap-3">
+                <span className="grid size-10 place-items-center rounded-full bg-[#dce7d7] text-[#173e32]" aria-hidden="true">
+                  <svg viewBox="0 0 32 32" className="size-6" fill="none">
+                    <path d="M5 23c4-9 8-11 13-15 0 7-2 12-8 17" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+                    <path d="M9 25c5-2 10-1 15-7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+                  </svg>
+                </span>
+                <span className="text-lg font-semibold tracking-tight">Mawas</span>
+              </div>
+              <p className="mt-4 max-w-sm text-xs leading-5 text-[#dbe7d5] sm:text-sm sm:leading-6">
+                Sistem Peringatan Dini Risiko Kekeringan Pertanian untuk Mendukung Ketahanan Pangan.
+              </p>
+              <div className="mt-5 flex items-start gap-2.5 text-xs text-[#dbe7d5] sm:text-sm">
+                <Mail className="mt-0.5 size-4 shrink-0" />
+                <p>
+                  <span className="block text-xs font-semibold text-[#b9d0a8]">Email proyek</span>
+                  <span className="mt-0.5 block">[EMAIL PROYEK]</span>
+                </p>
+              </div>
+            </div>
+            <FooterColumn title="Jelajahi">
+              <Link to="/peta-risiko">Peta risiko publik</Link>
+              <a href="#pilar-pangan">Pilar ketahanan pangan</a>
+              <a href="#metrik-fapar">Metrik data FAPAR</a>
+              <a href="#cara-kerja">Cara kerja</a>
+              <a href="#intervensi">Status intervensi</a>
+              <a href="#pertanyaan">Pertanyaan umum</a>
+            </FooterColumn>
+            <FooterColumn title="Akses">
+              <Link to="/signin">Masuk operator</Link>
+              <Link to="/signup">Daftarkan akun</Link>
+              <span>Hak akses mengikuti peran akun</span>
+            </FooterColumn>
+            <FooterColumn title="Data & Informasi">
+              <span>Sumber: FAPAR JRC / HDX</span>
+              <span>Proyeksi stres vegetasi 30 hari</span>
+              <span>Peta publik bersifat terbuka</span>
+            </FooterColumn>
+          </div>
+          <div className="flex flex-col justify-between gap-3 pt-6 text-xs text-[#b9d0a8] sm:flex-row">
+            <p>© {copyrightYear} Mawas. Sistem Peringatan Dini Risiko Kekeringan Pertanian.</p>
+            <p>Dibangun untuk transparansi mitigasi dan ketahanan pangan nasional.</p>
+          </div>
+        </div>
+      </footer>
+    </div>
+  )
 }
 
 function FooterColumn({ title, children }: { title: string; children: React.ReactNode }) {
-  return <div><h2 className="text-sm font-semibold text-[#f5f1e8]">{title}</h2><div className="mt-5 grid gap-3 text-sm leading-5 text-[#dbe7d5] [&_a]:w-fit [&_a]:transition-colors [&_a:hover]:text-[#f5f1e8] [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-4 [&_a:focus-visible]:outline-[#b97a16]">{children}</div></div>
+  return (
+    <div>
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-[#f5f1e8]">{title}</h2>
+      <div className="mt-4 grid gap-2.5 text-xs leading-5 text-[#dbe7d5] sm:text-sm [&_a]:w-fit [&_a]:transition-colors [&_a:hover]:text-[#f5f1e8] [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-4 [&_a:focus-visible]:outline-[#b97a16]">
+        {children}
+      </div>
+    </div>
+  )
 }

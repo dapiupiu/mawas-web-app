@@ -2,7 +2,7 @@
 
 ## Identity
 
-Mawas is a public reading surface for food-risk information. It should feel calm, grounded, and usable before it feels like a generic administration dashboard.
+Mawas is a public reading surface for agricultural drought risk and vegetation stress early warnings to support food security. It should feel calm, grounded, and usable before it feels like a generic administration dashboard.
 
 ## Visual system
 
@@ -19,6 +19,9 @@ Mawas is a public reading surface for food-risk information. It should feel calm
 - The identity motif is thin, quiet contour lines plus map-shaped information blocks. It references agricultural terrain and is never used as filler behind readable text.
 - Sections alternate between editorial text, map reading, a linear process, and an operational status panel.
 - Motion uses one short reveal on entry to establish reading order. Route changes move the exiting screen upward, run a brief contour-and-skeleton flash, then bring the destination in from below. Hover feedback is small. No infinite motion.
+- Content sections use one primary idea and only the supporting detail required to understand it. Icons identify a real subject, such as satellite source, rainfall context, or field response. They are never decorative filler.
+- Text reveal masks are reserved for primary headings as they enter the viewport. Visual placeholders use a clear `[GAMBAR: ...]` label until a verified agricultural image or map asset replaces them.
+- The desktop section rail is a scroll-progress and navigation aid. Its green state means a section has been reached, while gray marks a section below the current reading position.
 
 ## Content rules
 
