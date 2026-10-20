@@ -4,7 +4,14 @@ import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { BrandMark } from "./BrandMark"
 
-const navigation = [{ label: "Peta risiko", href: "/peta-risiko", route: true }, { label: "Cara kerja", href: "#cara-kerja", route: false }, { label: "Intervensi", href: "#intervensi", route: false }, { label: "Pertanyaan", href: "#pertanyaan", route: false }]
+const navigation = [
+  { label: "Peta risiko", href: "/peta-risiko", route: true },
+  { label: "Pilar pangan", href: "#pilar-pangan", route: false },
+  { label: "Metrik FAPAR", href: "#metrik-fapar", route: false },
+  { label: "Cara kerja", href: "#cara-kerja", route: false },
+  { label: "Intervensi", href: "#intervensi", route: false },
+  { label: "FAQ", href: "#pertanyaan", route: false }
+]
 
 export function SiteHeader() {
   const [isOpen, setIsOpen] = useState(false)
