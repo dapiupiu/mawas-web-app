@@ -14,6 +14,9 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 app.use(cors());
 app.use(express.json());
 
+const authRoutes = require('./routes/authRoutes');
+app.use('/api/auth', authRoutes);
+
 app.get('/', (req, res) => {
     res.json({ message: "Server mawas berjalan lancar!" });
 });
