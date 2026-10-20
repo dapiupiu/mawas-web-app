@@ -1,0 +1,6 @@
+model,n_baris_uji,MAE,RMSE
+rata-rata per kabupaten,20578,0.542,0.7176
+median per kabupaten,20578,0.5352,0.7191
+persistence,20578,0.6667,0.9256
+XGBoost,20578,0.5224,0.6891
+XGBoost (semua baris uji),21526,0.5269,0.6949
