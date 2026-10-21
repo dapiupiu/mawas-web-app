@@ -147,3 +147,13 @@ test-results/
 # ==========================================
 *.orig
 *.rej
+
+# ==========================================
+# Context, Notes, and Audit Reports
+# ==========================================
+mawas-konteks.md
+*-konteks.md
+anti-slop/
+audit-*.md
+*.tmp.md
+*.draft.md
