@@ -14,8 +14,13 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 app.use(cors());
 app.use(express.json());
 
+// 1. Route Auth
 const authRoutes = require('./routes/authRoutes');
 app.use('/api/auth', authRoutes);
+
+// 2. Route Risiko Wilayah (Baru)
+const risikoRoutes = require('./routes/risikoRoutes');
+app.use('/api/risiko', risikoRoutes);
 
 app.get('/', (req, res) => {
     res.json({ message: "Server mawas berjalan lancar!" });
