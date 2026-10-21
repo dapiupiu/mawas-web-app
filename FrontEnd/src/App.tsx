@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-route
 import { LandingPage } from "@/pages/LandingPage"
 import { LoginPage } from "@/pages/AuthPages"
 import { PublicRiskMapPage } from "@/pages/PublicRiskMapPage"
+import { DashboardPage } from "@/pages/DashboardPage"
 import { RouteFlash } from "@/components/layout/RouteFlash"
 
 function RouteTransition() {
@@ -23,7 +24,7 @@ function RouteTransition() {
 
   return <>
     {showFlash && !reduceMotion && <RouteFlash />}
-    <AnimatePresence mode="wait" initial={false}><motion.div key={location.pathname} initial={reduceMotion ? false : { y: "100vh", opacity: 0.92 }} animate={{ y: 0, opacity: 1 }} exit={reduceMotion ? undefined : { y: "-100vh", opacity: 0.96 }} transition={{ duration: 0.56, ease: [0.65, 0, 0.35, 1] }} className="min-h-screen bg-[#f5f1e8]"><Routes location={location}><Route path="/" element={<LandingPage />} /><Route path="/peta-risiko" element={<PublicRiskMapPage />} /><Route path="/signin" element={<LoginPage />} /><Route path="/login" element={<LoginPage />} /><Route path="/signup" element={<Navigate to="/signin" replace />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></motion.div></AnimatePresence>
+    <AnimatePresence mode="wait" initial={false}><motion.div key={location.pathname} initial={reduceMotion ? false : { y: "100vh", opacity: 0.92 }} animate={{ y: 0, opacity: 1 }} exit={reduceMotion ? undefined : { y: "-100vh", opacity: 0.96 }} transition={{ duration: 0.56, ease: [0.65, 0, 0.35, 1] }} className="min-h-screen bg-[#f5f1e8]"><Routes location={location}><Route path="/" element={<LandingPage />} /><Route path="/peta-risiko" element={<PublicRiskMapPage />} /><Route path="/signin" element={<LoginPage />} /><Route path="/login" element={<LoginPage />} /><Route path="/signup" element={<Navigate to="/signin" replace />} /><Route path="/dashboard" element={<DashboardPage />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></motion.div></AnimatePresence>
   </>
 }
 
