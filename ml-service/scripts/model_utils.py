@@ -3,6 +3,7 @@ import numpy as np
 
 AWAL_UJI = pd.Timestamp("2025-01-01")
 GAP_DEKAD = 3
+Q_RISIKO = 0.2  # 20% kabupaten dengan skor terburuk
 
 
 def muat_tabel(path="data/training/tabel_training.parquet"):
@@ -60,3 +61,16 @@ def mae(y, p):
 
 def rmse(y, p):
     return float(np.sqrt(np.mean((y - p) ** 2)))
+
+def ukur_ranking(u, kolom_pred, q=Q_RISIKO, min_kab=50, kolom_nyata=TARGET):
+    """Rata-rata presisi@q dan korelasi Spearman, dihitung per dekad."""
+    presisi, rho = [], []
+    for _, g in u.groupby("tanggal"):
+        if len(g) < min_kab:
+            continue
+        k = max(int(round(len(g) * q)), 1)
+        pred_bawah = set(g.nsmallest(k, kolom_pred).index)
+        nyata_bawah = set(g.nsmallest(k, kolom_nyata).index)
+        presisi.append(len(pred_bawah & nyata_bawah) / k)
+        rho.append(g[kolom_pred].corr(g[kolom_nyata], method="spearman"))
+    return len(presisi), float(np.mean(presisi)), float(np.nanmean(rho))
