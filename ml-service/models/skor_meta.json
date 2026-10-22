@@ -1,0 +1,11 @@
+{
+  "definisi_skor": "deviasi = fapar_mean(t) - kebiasaan_fapar(kabupaten); makin negatif makin jauh di bawah kebiasaan",
+  "kebiasaan": "rata-rata fapar_mean per kabupaten pada baris target_andal",
+  "periode_kebiasaan": [
+    "2021-01-01",
+    "2026-08-11"
+  ],
+  "n_kabupaten": 455,
+  "tanggal_terakhir_di_tabel": "2026-09-11",
+  "ambang_kategori": "belum ditetapkan"
+}

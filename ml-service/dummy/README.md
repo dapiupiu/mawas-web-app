@@ -68,7 +68,7 @@ Setiap item dalam array `data` memiliki atribut berikut:
 Jalankan perintah berikut dari root repository:
 
 ```bash
-python scripts/19_make_dummy.py
+python ml-service/scripts/19_make_dummy.py
 ```
 
 Script tersebut digunakan untuk menghasilkan ulang file dummy sesuai struktur dan aturan yang ditetapkan.
