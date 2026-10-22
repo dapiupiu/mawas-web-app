@@ -1,0 +1,37 @@
+{
+  "target": "target_fapar_t3",
+  "fitur": [
+    "fapar_mean",
+    "fapar_lag1",
+    "fapar_lag2",
+    "fapar_lag3",
+    "rfh",
+    "rfh_lag1",
+    "rfh_lag2",
+    "rfh_lag3",
+    "rfq",
+    "rfq_lag1",
+    "rfq_lag2",
+    "rfq_lag3",
+    "r1h",
+    "r3h",
+    "r1q",
+    "r3q",
+    "bulan"
+  ],
+  "param": {
+    "n_estimators": 300,
+    "learning_rate": 0.05,
+    "max_depth": 4,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "random_state": 42
+  },
+  "versi_xgboost": "3.4.1",
+  "batas_uji_awal": "2025-01-01",
+  "gap_dekad": 3,
+  "n_latih": 53258,
+  "n_uji": 21526,
+  "n_final": 75669,
+  "tanggal_terakhir_final": "2026-08-11"
+}

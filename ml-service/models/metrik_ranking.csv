@@ -1,0 +1,10 @@
+lipatan,model,n_dekad,presisi_20,lift,spearman
+uji 2023,rata-rata per kabupaten,36,0.245,1.23,0.137
+uji 2023,rata-rata per kabupaten+bulan,36,0.272,1.36,0.189
+uji 2023,XGBoost,36,0.257,1.29,0.156
+uji 2024,rata-rata per kabupaten,36,0.323,1.61,0.236
+uji 2024,rata-rata per kabupaten+bulan,36,0.292,1.46,0.189
+uji 2024,XGBoost,36,0.265,1.33,0.186
+uji 2025-2026,rata-rata per kabupaten,59,0.331,1.66,0.284
+uji 2025-2026,rata-rata per kabupaten+bulan,59,0.339,1.69,0.325
+uji 2025-2026,XGBoost,59,0.286,1.43,0.234

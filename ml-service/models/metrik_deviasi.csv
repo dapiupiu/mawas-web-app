@@ -1,0 +1,7 @@
+lipatan,model,n_dekad,lift,spearman
+uji 2023,XGBoost (koreksi saja),36,1.33,0.135
+uji 2023,persistence deviasi,36,1.55,0.247
+uji 2024,XGBoost (koreksi saja),36,1.2,0.129
+uji 2024,persistence deviasi,36,1.34,0.201
+uji 2025-2026,XGBoost (koreksi saja),59,1.28,0.142
+uji 2025-2026,persistence deviasi,59,1.46,0.219
