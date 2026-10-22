@@ -6,19 +6,20 @@ import {
   Eye,
   EyeOff,
   LockKeyhole,
+  Loader2,
   Mail,
   MapPinned,
   Sprout,
-  UserRound,
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { BrandMark } from "@/components/landing/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
+import { authApi, saveSession } from "@/lib/api";
 
 const slides = [
   {
@@ -225,10 +226,13 @@ function AuthCarousel() {
 }
 
 export function LoginPage() {
+  const navigate = useNavigate();
   const [message, setMessage] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const reduceMotion = useReducedMotion();
   const hasEmailError = isSignUp && email.length > 0 && !email.includes("@");
 
@@ -253,21 +257,51 @@ export function LoginPage() {
   const isPasswordStrong = passwordRules.every((rule) => rule.valid);
   const showPasswordAlert = isSignUp && password.length > 0;
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isSignUp) {
-      if (hasEmailError) {
-        return;
-      }
-      if (!isPasswordStrong) {
-        return;
-      }
+      if (hasEmailError) return;
+      if (!isPasswordStrong) return;
     }
-    setMessage(
-      isSignUp
-        ? "Layanan pendaftaran belum terhubung. Hubungkan endpoint pembuatan akun untuk melanjutkan."
-        : "Layanan autentikasi belum terhubung. Hubungkan endpoint login untuk melanjutkan.",
-    );
+    setIsLoading(true);
+    setMessage("");
+    try {
+      if (isSignUp) {
+        await authApi.register(email, password);
+        setMessage("Akun berhasil dibuat! Silakan masuk untuk melanjutkan.");
+        setIsSignUp(false);
+        setPassword("");
+      } else {
+        const { token, user } = await authApi.login(email, password);
+        saveSession(token, user);
+        navigate("/dashboard", { replace: true });
+      }
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      const errData = (err as { response?: { data?: { error?: string } } })?.response?.data;
+      if (status === 400) {
+        setMessage(errData?.error ?? (isSignUp ? "Email sudah terdaftar. Coba masuk atau gunakan email lain." : "Email atau kata sandi tidak cocok. Silakan coba lagi."));
+      } else if ((err as { code?: string })?.code === "ERR_NETWORK") {
+        setMessage("Terjadi gangguan koneksi. Periksa jaringan Anda dan coba lagi.");
+      } else {
+        setMessage("Terjadi kesalahan. Silakan coba lagi.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleGoogleLogin() {
+    setIsGoogleLoading(true);
+    setMessage("");
+    try {
+      const url = await authApi.googleOAuthUrl();
+      window.location.href = url;
+    } catch (err: unknown) {
+      const errData = (err as { response?: { data?: { error?: string } } })?.response?.data;
+      setMessage(errData?.error ?? "Login dengan Google tidak berhasil. Silakan coba lagi.");
+      setIsGoogleLoading(false);
+    }
   }
 
   return (
@@ -359,32 +393,7 @@ export function LoginPage() {
               className="mt-8 space-y-4 overflow-hidden"
               onSubmit={handleSubmit}
             >
-              <AnimatePresence initial={false}>
-                {isSignUp && (
-                  <motion.div
-                    initial={
-                      reduceMotion ? false : { opacity: 0, height: 0, y: -10 }
-                    }
-                    animate={{ opacity: 1, height: "auto", y: 0 }}
-                    exit={
-                      reduceMotion
-                        ? undefined
-                        : { opacity: 0, height: 0, y: -10 }
-                    }
-                    transition={{ duration: 0.28, ease: "easeOut" }}
-                    className="overflow-hidden"
-                  >
-                    <Field
-                        id="username"
-                        label="Username"
-                        type="text"
-                        placeholder="nama pengguna"
-                        icon={<UserRound className="size-4" />}
-                        autoComplete="username"
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <AnimatePresence initial={false} />
               <Field
                 id="email"
                 label="Email"
@@ -493,7 +502,7 @@ export function LoginPage() {
                         type="button"
                         className="min-h-11 text-sm font-semibold text-[#36564a] underline decoration-[#b97a16] decoration-2 underline-offset-4 hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b97a16]"
                         onClick={() =>
-                          setMessage("Pemulihan kata sandi belum terhubung.")
+                          setMessage("Fitur pemulihan kata sandi segera hadir.")
                         }
                       >
                         Lupa kata sandi?
@@ -504,9 +513,14 @@ export function LoginPage() {
               </AnimatePresence>
               <Button
                 type="submit"
-                className="h-12 w-full bg-[#173e32] text-[#f5f1e8] hover:bg-[#245542]"
+                disabled={isLoading}
+                className="h-12 w-full bg-[#173e32] text-[#f5f1e8] hover:bg-[#245542] disabled:opacity-60"
               >
-                {isSignUp ? "Buat akun" : "Masuk"}
+                {isLoading ? (
+                  <><Loader2 className="mr-2 size-4 animate-spin" />{isSignUp ? "Membuat akun…" : "Masuk…"}</>
+                ) : (
+                  isSignUp ? "Buat akun" : "Masuk"
+                )}
               </Button>
             </motion.form>
             <div className="my-6 flex items-center gap-3 text-xs text-[#557267]">
@@ -517,16 +531,15 @@ export function LoginPage() {
             <Button
               type="button"
               variant="outline"
-              className="h-12 w-full border-[#173e32]/20 bg-white text-[#173e32] hover:bg-[#dce7d7]"
-              onClick={() =>
-                setMessage(
-                  isSignUp
-                    ? "Pendaftaran dengan Google belum terhubung."
-                    : "Login Google belum terhubung.",
-                )
-              }
+              disabled={isGoogleLoading}
+              className="h-12 w-full border-[#173e32]/20 bg-white text-[#173e32] hover:bg-[#dce7d7] disabled:opacity-60"
+              onClick={handleGoogleLogin}
             >
-              <GoogleIcon />
+              {isGoogleLoading ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <GoogleIcon />
+              )}
               {isSignUp ? "Daftar dengan Google" : "Lanjutkan dengan Google"}
             </Button>
             {message && (
