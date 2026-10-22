@@ -268,7 +268,7 @@ export function LoginPage() {
     try {
       if (isSignUp) {
         await authApi.register(email, password);
-        setMessage("Akun berhasil dibuat! Silakan masuk dengan akun baru Anda.");
+        setMessage("Akun berhasil dibuat! Silakan masuk untuk melanjutkan.");
         setIsSignUp(false);
         setPassword("");
       } else {
@@ -280,9 +280,9 @@ export function LoginPage() {
       const status = (err as { response?: { status?: number } })?.response?.status;
       const errData = (err as { response?: { data?: { error?: string } } })?.response?.data;
       if (status === 400) {
-        setMessage(errData?.error ?? (isSignUp ? "Email sudah terdaftar atau data tidak valid." : "Email atau kata sandi salah."));
+        setMessage(errData?.error ?? (isSignUp ? "Email sudah terdaftar. Coba masuk atau gunakan email lain." : "Email atau kata sandi tidak cocok. Silakan coba lagi."));
       } else if ((err as { code?: string })?.code === "ERR_NETWORK") {
-        setMessage("Tidak dapat terhubung ke server. Pastikan backend sudah berjalan.");
+        setMessage("Terjadi gangguan koneksi. Periksa jaringan Anda dan coba lagi.");
       } else {
         setMessage("Terjadi kesalahan. Silakan coba lagi.");
       }
@@ -299,7 +299,7 @@ export function LoginPage() {
       window.location.href = url;
     } catch (err: unknown) {
       const errData = (err as { response?: { data?: { error?: string } } })?.response?.data;
-      setMessage(errData?.error ?? "Login Google gagal. Pastikan backend sudah berjalan.");
+      setMessage(errData?.error ?? "Login dengan Google tidak berhasil. Silakan coba lagi.");
       setIsGoogleLoading(false);
     }
   }
@@ -502,7 +502,7 @@ export function LoginPage() {
                         type="button"
                         className="min-h-11 text-sm font-semibold text-[#36564a] underline decoration-[#b97a16] decoration-2 underline-offset-4 hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b97a16]"
                         onClick={() =>
-                          setMessage("Pemulihan kata sandi belum terhubung.")
+                          setMessage("Fitur pemulihan kata sandi segera hadir.")
                         }
                       >
                         Lupa kata sandi?

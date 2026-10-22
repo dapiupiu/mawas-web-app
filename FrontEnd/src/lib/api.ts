@@ -14,6 +14,20 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Tangani respon jika middleware backend menolak token (401 / 403)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      authApi.logout()
+      if (typeof window !== "undefined" && window.location.pathname.startsWith("/dashboard")) {
+        window.location.href = "/signin"
+      }
+    }
+    return Promise.reject(error)
+  },
+)
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface StoredUser {
@@ -72,6 +86,14 @@ export const authApi = {
     return data.url
   },
 
+  /** Verifikasi akses ke endpoint yang dilindungi middleware authenticateToken & authorizeRoles */
+  async getOperatorDashboard() {
+    const { data } = await api.get<{ message: string; user: StoredUser }>(
+      "/api/auth/operator-dashboard",
+    )
+    return data
+  },
+
   logout() {
     localStorage.removeItem("mawas_token")
     localStorage.removeItem("mawas_user")
@@ -97,3 +119,33 @@ export function getStoredUser(): StoredUser | null {
 export function isAuthenticated() {
   return !!localStorage.getItem("mawas_token")
 }
+
+/**
+ * Cek apakah URL mengandung callback token Google OAuth (#access_token=...) dari Supabase.
+ * Jika ada, simpan token dan user metadata ke session dan bersihkan URL hash.
+ */
+export function checkAndStoreOAuthCallback(): boolean {
+  if (typeof window === "undefined") return false
+  const hash = window.location.hash
+  if (hash && hash.includes("access_token=")) {
+    try {
+      const params = new URLSearchParams(hash.replace(/^#/, ""))
+      const token = params.get("access_token")
+      if (token) {
+        const claims = decodeJwt(token)
+        const user: StoredUser = {
+          id: (claims?.sub as string) ?? "",
+          email: (claims?.email as string) ?? "",
+          role: (claims?.["user_metadata"] as { role?: string })?.role ?? "operator",
+        }
+        saveSession(token, user)
+        window.history.replaceState(null, "", window.location.pathname)
+        return true
+      }
+    } catch {
+      return false
+    }
+  }
+  return false
+}
+

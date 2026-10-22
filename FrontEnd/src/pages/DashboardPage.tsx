@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 import { LogOut, MapPinned, Sprout, BarChart3, Bell, ChevronRight } from "lucide-react"
-import { authApi, getStoredUser, isAuthenticated } from "@/lib/api"
+import { authApi, getStoredUser } from "@/lib/api"
 import { BrandMark } from "@/components/landing/BrandMark"
 
 type User = { id: string; email: string; username?: string; name?: string }
@@ -39,20 +39,33 @@ export function DashboardPage() {
   const [time, setTime] = useState(new Date())
 
   useEffect(() => {
-    if (!isAuthenticated()) {
+    const stored = getStoredUser()
+    if (!stored) {
+      authApi.logout()
       navigate("/signin", { replace: true })
       return
     }
 
-    const stored = getStoredUser()
-    if (stored) {
-      setUser(stored)
-    } else {
-      // No stored user — session may be invalid, redirect to login
-      authApi.logout()
-      navigate("/signin", { replace: true })
-    }
+    setUser(stored)
     setLoading(false)
+
+    // Validasi token langsung ke Backend Middleware (authenticateToken & authorizeRoles)
+    authApi
+      .getOperatorDashboard()
+      .then((res) => {
+        if (res?.user) {
+          setUser((prev) => ({
+            ...prev,
+            ...res.user,
+            email: res.user.email ?? prev?.email ?? "",
+            id: res.user.id ?? prev?.id ?? "",
+          }))
+        }
+      })
+      .catch((err) => {
+        // Status 401/403 ditangani otomatis oleh axios response interceptor (logout + redirect)
+        console.debug("Backend middleware check:", err?.response?.status ?? err?.message)
+      })
   }, [navigate])
 
   useEffect(() => {
