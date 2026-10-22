@@ -19,10 +19,10 @@ api.interceptors.request.use((config) => {
 export interface StoredUser {
   id: string
   email: string
-  username?: string
+  role?: string
 }
 
-// ─── JWT decode (no library needed) ──────────────────────────────────────────
+// ─── JWT decode (tanpa library tambahan) ─────────────────────────────────────
 
 function decodeJwt(token: string): Record<string, unknown> | null {
   try {
@@ -35,32 +35,41 @@ function decodeJwt(token: string): Record<string, unknown> | null {
 }
 
 // ─── Auth endpoints ───────────────────────────────────────────────────────────
-// Backend branch: origin/feat/auth
-// Routes mounted at: /api/auth
+// Backend: /api/auth
 //   POST /api/auth/login    → { message, token }
 //   POST /api/auth/register → { message, user }
+//   GET  /api/auth/google   → { url }  (redirect ke Google OAuth)
 
 export const authApi = {
+  /** Login email + password → simpan token & user ke localStorage */
   async login(email: string, password: string) {
     const { data } = await api.post<{ message: string; token: string }>(
       "/api/auth/login",
       { email, password },
     )
-    // Decode Supabase JWT to extract user info (sub = user id, email in claims)
+    // Decode Supabase JWT untuk ambil id & email tanpa endpoint /me
     const claims = decodeJwt(data.token)
     const user: StoredUser = {
       id: (claims?.sub as string) ?? "",
       email: (claims?.email as string) ?? email,
+      role: (claims?.["user_metadata"] as { role?: string })?.role,
     }
     return { token: data.token, user }
   },
 
-  async register(email: string, password: string, _username?: string) {
+  /** Register email + password (role default 'operator' di BE) */
+  async register(email: string, password: string) {
     const { data } = await api.post<{
       message: string
       user: { id: string; email: string }
     }>("/api/auth/register", { email, password })
     return { message: data.message, user: data.user }
+  },
+
+  /** Google OAuth — BE mengembalikan URL redirect Google, lalu browser diarahkan */
+  async googleOAuthUrl() {
+    const { data } = await api.get<{ url: string }>("/api/auth/google")
+    return data.url
   },
 
   logout() {

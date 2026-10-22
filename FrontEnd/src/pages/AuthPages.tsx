@@ -10,7 +10,6 @@ import {
   Mail,
   MapPinned,
   Sprout,
-  UserRound,
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -232,7 +231,6 @@ export function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const reduceMotion = useReducedMotion();
@@ -269,7 +267,7 @@ export function LoginPage() {
     setMessage("");
     try {
       if (isSignUp) {
-        await authApi.register(email, password, username);
+        await authApi.register(email, password);
         setMessage("Akun berhasil dibuat! Silakan masuk dengan akun baru Anda.");
         setIsSignUp(false);
         setPassword("");
@@ -280,8 +278,9 @@ export function LoginPage() {
       }
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
+      const errData = (err as { response?: { data?: { error?: string } } })?.response?.data;
       if (status === 400) {
-        setMessage(isSignUp ? "Email sudah terdaftar atau data tidak valid." : "Email atau kata sandi salah.");
+        setMessage(errData?.error ?? (isSignUp ? "Email sudah terdaftar atau data tidak valid." : "Email atau kata sandi salah."));
       } else if ((err as { code?: string })?.code === "ERR_NETWORK") {
         setMessage("Tidak dapat terhubung ke server. Pastikan backend sudah berjalan.");
       } else {
@@ -292,8 +291,17 @@ export function LoginPage() {
     }
   }
 
-  function handleGoogleLogin() {
-    setMessage("Login dengan Google belum tersedia. Gunakan email dan kata sandi.");
+  async function handleGoogleLogin() {
+    setIsGoogleLoading(true);
+    setMessage("");
+    try {
+      const url = await authApi.googleOAuthUrl();
+      window.location.href = url;
+    } catch (err: unknown) {
+      const errData = (err as { response?: { data?: { error?: string } } })?.response?.data;
+      setMessage(errData?.error ?? "Login Google gagal. Pastikan backend sudah berjalan.");
+      setIsGoogleLoading(false);
+    }
   }
 
   return (
@@ -385,34 +393,7 @@ export function LoginPage() {
               className="mt-8 space-y-4 overflow-hidden"
               onSubmit={handleSubmit}
             >
-              <AnimatePresence initial={false}>
-                {isSignUp && (
-                  <motion.div
-                    initial={
-                      reduceMotion ? false : { opacity: 0, height: 0, y: -10 }
-                    }
-                    animate={{ opacity: 1, height: "auto", y: 0 }}
-                    exit={
-                      reduceMotion
-                        ? undefined
-                        : { opacity: 0, height: 0, y: -10 }
-                    }
-                    transition={{ duration: 0.28, ease: "easeOut" }}
-                    className="overflow-hidden"
-                  >
-                    <Field
-                        id="username"
-                        label="Username"
-                        type="text"
-                        placeholder="nama pengguna"
-                        icon={<UserRound className="size-4" />}
-                        autoComplete="username"
-                        value={username}
-                        onValueChange={setUsername}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <AnimatePresence initial={false} />
               <Field
                 id="email"
                 label="Email"
