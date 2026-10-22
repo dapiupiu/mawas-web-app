@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, timezone
-
+from pathlib import Path
+import shutil
 import pandas as pd
 
 TANGGAL_ACUAN = "2026-09-11"
@@ -13,12 +14,14 @@ print("Baris tanggal", TANGGAL_ACUAN, ":", len(y))
 if len(y) == 0:
     raise SystemExit(f"Tidak ada baris untuk tanggal {TANGGAL_ACUAN}")
 
+
 def opsional(v):
     if pd.isna(v):
         return None
     if isinstance(v, (int, float)):
         return round(float(v), 2)
     return v
+
 
 def ke_item(r):
     return {
@@ -28,7 +31,9 @@ def ke_item(r):
         "provinsi": r["provinsi"],
         "tanggal": r["tanggal"].strftime("%Y-%m-%d"),
         "horizon_hari": int(r["horizon_hari"]),
-        "skor_risiko": None if pd.isna(r["skor_risiko"]) else round(float(r["skor_risiko"]), 2),
+        "skor_risiko": None
+        if pd.isna(r["skor_risiko"])
+        else round(float(r["skor_risiko"]), 2),
         "kategori": r["kategori"],
         "faktor_penyebab": r["faktor_penyebab"],
         "dihasilkan_pada": r["dihasilkan_pada"],
@@ -43,6 +48,7 @@ def ke_item(r):
         "r1q": opsional(r["r1q"]),
         "r3q": opsional(r["r3q"]),
     }
+
 
 data = [ke_item(r) for _, r in y.iterrows()]
 
@@ -105,8 +111,16 @@ print("Jumlah item:", len(data))
 print("Kategori:", kategori_counter)
 print("Punya cuaca:", punya_cuaca, "| tanpa:", tanpa_cuaca)
 print("Hujan (dari", n_rfq, "kab):")
-print("  bawah normal :", n_bawah, f"({round(n_bawah/n_rfq*100,1)}%)")
+print("  bawah normal :", n_bawah, f"({round(n_bawah / n_rfq * 100, 1)}%)")
 print("  normal       :", n_normal)
 print("  atas normal  :", n_atas)
 print("Contoh item pertama:")
 print(json.dumps(data[0], ensure_ascii=False, indent=2))
+
+OUT_DIR = Path("output_model")
+OUT_DIR.mkdir(exist_ok=True)
+shutil.copy(
+    "data/output/risiko_kabupaten_terbaru.json",
+    OUT_DIR / "risiko_kabupaten_terbaru.json",
+)
+print("Disalin ke:", OUT_DIR / "risiko_kabupaten_terbaru.json")
