@@ -19,6 +19,10 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 || error.response?.status === 403) {
+      const token = typeof localStorage !== "undefined" ? localStorage.getItem("mawas_token") : null
+      if (token && token.startsWith("mock_dev_")) {
+        return Promise.reject(error)
+      }
       authApi.logout()
       if (typeof window !== "undefined" && window.location.pathname.startsWith("/dashboard")) {
         window.location.href = "/signin"
@@ -34,6 +38,43 @@ export interface StoredUser {
   id: string
   email: string
   role?: string
+  username?: string
+  name?: string
+}
+
+export interface RisikoItem {
+  kode_kabupaten: string
+  nama_kabupaten: string
+  provinsi?: string
+  tanggal?: string
+  horizon_hari?: number
+  skor_risiko: number | null
+  kategori: "rendah" | "sedang" | "tinggi" | "data tidak tersedia" | string
+  faktor_penyebab?: string | string[]
+  dihasilkan_pada?: string
+  status_data: "contoh" | "model" | "real" | string
+  punya_data_cuaca?: boolean
+  id_fe?: string
+  frac_valid?: number
+  n_valid?: number
+  n_piksel?: number
+  rfq?: number
+  r1q?: number
+  r3q?: number
+}
+
+export interface AnalisisAIResponse {
+  kode_kabupaten: string
+  nama_kabupaten: string
+  tanggal: string
+  skor_risiko: number | null
+  kategori: string
+  faktor_penyebab: string | string[]
+  analisis_ai: {
+    penjelasan: string
+    rekomendasi: string[] | string
+    label: string
+  }
 }
 
 // ─── JWT decode (tanpa library tambahan) ─────────────────────────────────────
@@ -71,12 +112,12 @@ export const authApi = {
     return { token: data.token, user }
   },
 
-  /** Register email + password (role default 'operator' di BE) */
-  async register(email: string, password: string) {
+  /** Register email + password + username (role default 'operator' di BE) */
+  async register(email: string, password: string, username?: string) {
     const { data } = await api.post<{
       message: string
       user: { id: string; email: string }
-    }>("/api/auth/register", { email, password })
+    }>("/api/auth/register", { email, password, username })
     return { message: data.message, user: data.user }
   },
 
@@ -92,6 +133,20 @@ export const authApi = {
       "/api/auth/operator-dashboard",
     )
     return data
+  },
+
+  /** Bypass autentikasi sementara untuk keperluan demo & local dev dashboard */
+  loginDevBypass(user?: Partial<StoredUser>) {
+    const mockToken = "mock_dev_token_mawas_bypass_" + Date.now()
+    const mockUser: StoredUser = {
+      id: user?.id ?? "dev-operator-01",
+      email: user?.email ?? "operator@mawas.id",
+      role: user?.role ?? "operator",
+      username: user?.username ?? "Operator Demo",
+      name: user?.name ?? "Operator Demo",
+    }
+    saveSession(mockToken, mockUser)
+    return { token: mockToken, user: mockUser }
   },
 
   logout() {
@@ -147,5 +202,34 @@ export function checkAndStoreOAuthCallback(): boolean {
     }
   }
   return false
+}
+
+// ─── Risiko endpoints ─────────────────────────────────────────────────────────
+
+export const risikoApi = {
+  /** Fetch semua data risiko wilayah dari backend (/api/risiko) */
+  async getAllRisiko(): Promise<RisikoItem[]> {
+    const { data } = await api.get<{
+      status: string
+      total: number
+      data: RisikoItem[]
+    }>("/api/risiko")
+    return data.data || []
+  },
+
+  /** Fetch detail risiko berdasarkan kode_kabupaten */
+  async getRisikoByKode(kode: string): Promise<RisikoItem> {
+    const { data } = await api.get<{
+      status: string
+      data: RisikoItem
+    }>(`/api/risiko/${kode}`)
+    return data.data
+  },
+
+  /** Fetch narasi & rekomendasi Generative AI (Gemini) per kabupaten */
+  async getAnalisisAI(kode: string): Promise<AnalisisAIResponse> {
+    const { data } = await api.get<AnalisisAIResponse>(`/api/risiko/${kode}/analisis`)
+    return data
+  },
 }
 

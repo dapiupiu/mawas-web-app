@@ -12,11 +12,11 @@ export function PillarsSection() {
   return (
     <section
       id="pilar-pangan"
-      className="border-b border-[#173e32]/10 bg-[#fbfaf5] px-4 py-16 sm:px-6 sm:py-24 lg:px-8"
+      className="border-b border-[#173e32]/10 bg-[#fbfaf5] px-4 py-16 sm:px-6 sm:py-24 lg:px-10 xl:px-12"
     >
-      <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.78fr_1.22fr] lg:items-center">
+      <div className="mx-auto grid w-full max-w-[1680px] gap-10 lg:grid-cols-[0.88fr_1.12fr] lg:items-center lg:justify-between">
         <Reveal>
-          <div className="max-w-xl">
+          <div>
             <p className="text-sm font-semibold text-[#557267]">
               Fokus saat ini
             </p>

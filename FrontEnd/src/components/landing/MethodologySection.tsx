@@ -18,18 +18,18 @@ export function MethodologySection() {
   return (
     <section
       id="metrik-fapar"
-      className="border-b border-[#173e32]/10 bg-[#f5f1e8] px-4 py-16 sm:px-6 sm:py-24 lg:px-8"
+      className="border-b border-[#173e32]/10 bg-[#f5f1e8] px-4 py-16 sm:px-6 sm:py-24 lg:px-10 xl:px-12"
     >
-      <div className="mx-auto max-w-7xl">
+      <div className="mx-auto w-full max-w-[1680px]">
         <Reveal>
-          <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
+          <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-end lg:justify-between">
             <div>
               <p className="text-sm font-semibold text-[#557267]">Dasar data</p>
               <h2 className="mt-3 font-serif text-4xl leading-tight tracking-[-0.035em] sm:text-5xl">
                 Sinyal satelit, dibaca dengan batas yang jelas.
               </h2>
             </div>
-            <p className="max-w-xl text-base leading-7 text-[#36564a]">
+            <p className="text-base leading-7 text-[#36564a]">
               Mawas memakai anomali FAPAR untuk melihat perubahan kondisi
               vegetasi. Ini adalah indikator awal, bukan kepastian hasil panen.
             </p>

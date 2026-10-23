@@ -13,6 +13,7 @@ import { PublicRiskMapPage } from "@/pages/PublicRiskMapPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { RouteFlash } from "@/components/layout/RouteFlash";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
+import { LocationPermissionModal } from "@/components/common/LocationPermissionModal";
 
 function RouteTransition() {
   const location = useLocation();
@@ -67,6 +68,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <RouteTransition />
+      <LocationPermissionModal />
     </BrowserRouter>
   );
 }

@@ -10,6 +10,8 @@ import {
   Mail,
   MapPinned,
   Sprout,
+  UserRound,
+  KeyRound,
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -231,10 +233,26 @@ export function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const reduceMotion = useReducedMotion();
   const hasEmailError = isSignUp && email.length > 0 && !email.includes("@");
+
+  // Deteksi jika user membuka /signin?bypass=true atau ?backdoor=true
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (
+        params.get("bypass") === "true" ||
+        params.get("backdoor") === "true" ||
+        params.get("dev") === "true"
+      ) {
+        authApi.loginDevBypass();
+        navigate("/dashboard", { replace: true });
+      }
+    }
+  }, [navigate]);
 
   const passwordRules = [
     {
@@ -260,6 +278,10 @@ export function LoginPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isSignUp) {
+      if (!username.trim()) {
+        setMessage("Nama pengguna (username) wajib diisi.");
+        return;
+      }
       if (hasEmailError) return;
       if (!isPasswordStrong) return;
     }
@@ -267,10 +289,11 @@ export function LoginPage() {
     setMessage("");
     try {
       if (isSignUp) {
-        await authApi.register(email, password);
+        await authApi.register(email, password, username.trim());
         setMessage("Akun berhasil dibuat! Silakan masuk untuk melanjutkan.");
         setIsSignUp(false);
         setPassword("");
+        setUsername("");
       } else {
         const { token, user } = await authApi.login(email, password);
         saveSession(token, user);
@@ -393,7 +416,34 @@ export function LoginPage() {
               className="mt-8 space-y-4 overflow-hidden"
               onSubmit={handleSubmit}
             >
-              <AnimatePresence initial={false} />
+              <AnimatePresence initial={false}>
+                {isSignUp && (
+                  <motion.div
+                    initial={
+                      reduceMotion ? false : { opacity: 0, height: 0, y: -10 }
+                    }
+                    animate={{ opacity: 1, height: "auto", y: 0 }}
+                    exit={
+                      reduceMotion
+                        ? undefined
+                        : { opacity: 0, height: 0, y: -10 }
+                    }
+                    transition={{ duration: 0.28, ease: "easeOut" }}
+                    className="overflow-hidden"
+                  >
+                    <Field
+                      id="username"
+                      label="Username"
+                      type="text"
+                      placeholder="Masukkan nama pengguna"
+                      icon={<UserRound className="size-4" />}
+                      autoComplete="username"
+                      value={username}
+                      onValueChange={setUsername}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <Field
                 id="email"
                 label="Email"
@@ -542,6 +592,23 @@ export function LoginPage() {
               )}
               {isSignUp ? "Daftar dengan Google" : "Lanjutkan dengan Google"}
             </Button>
+            {/* Dev / Temporary Bypass Shortcut */}
+            <div className="mt-4 flex flex-col items-center gap-1.5 rounded-lg border border-dashed border-[#b97a16]/40 bg-[#fbf8f0] p-3 text-center">
+              <span className="text-[11px] font-medium text-[#7a5913]">
+                Mode Pengujian / Dev Bypass Sementara:
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  authApi.loginDevBypass();
+                  navigate("/dashboard");
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#173e32] underline decoration-[#173e32]/40 underline-offset-2 hover:text-[#0f2a22] hover:decoration-[#173e32]"
+              >
+                <KeyRound className="size-3.5 text-[#b97a16]" />
+                Masuk Langsung ke Dashboard (Bypass) →
+              </button>
+            </div>
             {message && (
               <p
                 role="status"
