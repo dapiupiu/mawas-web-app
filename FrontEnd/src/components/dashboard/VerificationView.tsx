@@ -1,222 +1,276 @@
-import { useState, useMemo } from "react";
-import { 
-  Search, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Clock, 
-  Satellite, 
-  SlidersHorizontal,
-  CloudRain
-} from "lucide-react";
-import type { PredictionItem, RiskLevel } from "@/types/dashboard";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CheckCircle2, CircleAlert, ClipboardCheck, Clock, Loader2, Search, ShieldCheck } from "lucide-react";
+import type { PredictionItem, RiskLevel, VerificationStatus } from "@/types/dashboard";
+
+const PAGE_SIZE = 30;
 
 interface VerificationViewProps {
   predictions: PredictionItem[];
   onOpenVerifyModal: (item: PredictionItem) => void;
 }
 
-export function VerificationView({
-  predictions,
-  onOpenVerifyModal,
-}: VerificationViewProps) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | RiskLevel | "menunggu">("all");
+const riskLabels: Record<RiskLevel, { label: string; badgeClass: string }> = {
+  kritis: {
+    label: "Risiko Tinggi",
+    badgeClass: "bg-[#991b1b]/10 text-[#991b1b] border-[#991b1b]/30",
+  },
+  waspada: {
+    label: "Perlu Perhatian",
+    badgeClass: "bg-[#b45309]/10 text-[#b45309] border-[#b45309]/30",
+  },
+  normal: {
+    label: "Normal",
+    badgeClass: "bg-[#166534]/10 text-[#166534] border-[#166534]/30",
+  },
+  tidak_tersedia: {
+    label: "Data Tidak Tersedia",
+    badgeClass: "bg-gray-200 text-gray-700 border-gray-300",
+  },
+};
+
+const verificationLabels: Record<VerificationStatus, { label: string; class: string; icon: typeof CheckCircle2 }> = {
+  terverifikasi: {
+    label: "Terverifikasi",
+    class: "text-[#166534] bg-[#166534]/10 border-[#166534]/25",
+    icon: CheckCircle2,
+  },
+  perlu_cek: {
+    label: "Perlu Cek Lapangan",
+    class: "text-[#b45309] bg-[#b45309]/10 border-[#b45309]/25",
+    icon: CircleAlert,
+  },
+  menunggu: {
+    label: "Menunggu Review",
+    class: "text-[#557267] bg-[#557267]/10 border-[#557267]/25",
+    icon: Clock,
+  },
+};
+
+export function VerificationView({ predictions, onOpenVerifyModal }: VerificationViewProps) {
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | VerificationStatus>("all");
+  const [riskFilter, setRiskFilter] = useState<"all" | RiskLevel>("all");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const filteredItems = useMemo(() => {
     return predictions.filter((item) => {
-      const matchSearch = item.namaKabupaten.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          item.kodeKabupaten.includes(searchQuery);
-      if (!matchSearch) return false;
+      const q = query.toLowerCase().trim();
+      const matchQuery = !q || item.namaKabupaten.toLowerCase().includes(q) ||
+        item.kodeKabupaten.toLowerCase().includes(q) ||
+        item.provinsi.toLowerCase().includes(q);
 
-      if (statusFilter === "all") return true;
-      if (statusFilter === "menunggu") return item.statusVerifikasi === "menunggu";
-      return item.kategori === statusFilter;
+      const matchStatus = statusFilter === "all" || item.statusVerifikasi === statusFilter;
+      const matchRisk = riskFilter === "all" || item.kategori === riskFilter;
+
+      return matchQuery && matchStatus && matchRisk;
     });
-  }, [predictions, searchQuery, statusFilter]);
+  }, [predictions, query, statusFilter, riskFilter]);
+
+  // Reset visible count whenever filters change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [query, statusFilter, riskFilter]);
+
+  const loadMore = useCallback(() => {
+    setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, filteredItems.length));
+  }, [filteredItems.length]);
+
+  // Sentinel IntersectionObserver — loads next batch when bottom sentinel enters viewport
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) loadMore(); },
+      { rootMargin: "200px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMore]);
+
+  const visibleItems = filteredItems.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredItems.length;
 
   const pendingCount = predictions.filter((p) => p.statusVerifikasi === "menunggu").length;
+  const verifiedCount = predictions.filter((p) => p.statusVerifikasi === "terverifikasi").length;
+  const needCheckCount = predictions.filter((p) => p.statusVerifikasi === "perlu_cek").length;
 
   return (
     <div className="space-y-5">
-      {/* Overview Intro Card */}
-      <div className="rounded-2xl border border-[#173e32]/12 bg-white p-5 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      {/* Bio-Tech Telemetry Banner */}
+      <section className="rounded-xl border border-[#173e32]/12 bg-white p-5 sm:p-6 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="flex items-center gap-2">
-              <Satellite className="size-4 text-[#173e32]" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#557267]">
-                Model Prediksi Risiko (F02 & F04)
-              </span>
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#10b981]">
+              <ClipboardCheck className="size-4" />
+              <span>Modul Verifikasi Lapangan</span>
             </div>
-            <h2 className="mt-1 font-serif text-xl font-bold text-[#173e32]">
-              Daftar Tugas Verifikasi & Koreksi Lapangan
+            <h2 className="mt-2 font-serif text-2xl font-bold tracking-tight text-[#173e32]">
+              Pusat Verifikasi Kondisi Lapangan
             </h2>
-            <p className="mt-1 text-xs text-[#36564a]">
-              Operator memiliki wewenang memvalidasi atau mengoreksi prediksi otomatis AI jika terdapat faktor mitigasi irigasi lokal.
+            <p className="mt-2 max-w-2xl text-xs sm:text-sm leading-relaxed text-[#557267]">
+              Skor risiko bersumber dari model satelit dan bersifat tetap (read-only). Operator mencatat konfirmasi kondisi riil tanaman, saluran irigasi, serta catatan penyuluh di lapangan.
             </p>
           </div>
 
-          {pendingCount > 0 && (
-            <div className="flex items-center gap-2 rounded-xl border border-[#966a13]/30 bg-[#966a13]/10 px-3.5 py-2 text-xs text-[#5e4107]">
-              <Clock className="size-4 shrink-0 text-[#966a13]" />
-              <div>
-                <p className="font-bold">{pendingCount} Wilayah Menunggu</p>
-                <p className="text-[11px] text-[#5e4107]/80">Perlu konfirmasi laporan penyuluh</p>
-              </div>
+          {/* Quick Verification Counter Bar */}
+          <div className="flex flex-wrap items-center gap-2 border-t sm:border-t-0 sm:border-l sm:pl-5 border-[#173e32]/10 pt-3 sm:pt-0">
+            <div className="rounded-lg border border-[#b45309]/30 bg-[#fef3c7] px-3 py-2 text-left">
+              <span className="block font-mono text-lg font-bold text-[#b45309]">{pendingCount}</span>
+              <span className="text-[11px] font-semibold text-[#78350f]">Menunggu Review</span>
             </div>
-          )}
+            <div className="rounded-lg border border-[#166534]/30 bg-[#dcfce7] px-3 py-2 text-left">
+              <span className="block font-mono text-lg font-bold text-[#166534]">{verifiedCount}</span>
+              <span className="text-[11px] font-semibold text-[#14532d]">Terverifikasi</span>
+            </div>
+            <div className="rounded-lg border border-[#173e32]/15 bg-[#f5f1e8] px-3 py-2 text-left">
+              <span className="block font-mono text-lg font-bold text-[#173e32]">{needCheckCount}</span>
+              <span className="text-[11px] font-semibold text-[#557267]">Perlu Cek</span>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        {/* Search */}
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-2.5 size-4 text-[#557267]" />
+      <div className="flex flex-col gap-3 rounded-xl border border-[#173e32]/12 bg-white p-3.5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+        <label className="relative block flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#557267]" />
           <input
             type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari kabupaten atau kode wilayah..."
-            className="w-full rounded-xl border border-[#173e32]/15 bg-white py-2 pl-9 pr-4 text-xs text-[#173e32] placeholder:text-[#557267] focus:border-[#173e32] focus:outline-none focus:ring-1 focus:ring-[#173e32]"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Cari kabupaten, provinsi, atau kode..."
+            className="min-h-11 w-full rounded-lg border border-[#173e32]/15 bg-[#fbfaf6] py-2 pl-9 pr-3 text-xs sm:text-sm text-[#173e32] placeholder:text-[#557267] focus-visible:outline-2 focus-visible:outline-[#10b981]"
           />
-        </div>
+        </label>
 
-        {/* Filter Pills */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <SlidersHorizontal className="size-3.5 text-[#557267] mr-1 hidden sm:block" />
-          {[
-            { id: "all", label: "Semua" },
-            { id: "menunggu", label: `Menunggu (${pendingCount})` },
-            { id: "kritis", label: "Kritis" },
-            { id: "waspada", label: "Waspada" },
-            { id: "normal", label: "Normal" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setStatusFilter(tab.id as typeof statusFilter)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-[#b97a16] ${
-                statusFilter === tab.id
-                  ? "bg-[#173e32] text-[#f5f1e8]"
-                  : "border border-[#173e32]/12 bg-white text-[#557267] hover:bg-[#dce7d7]/50 hover:text-[#173e32]"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        {/* Status & Risk Filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Status Tabs */}
+          <div className="inline-flex rounded-lg border border-[#173e32]/15 bg-[#fbfaf6] p-0.5 text-xs font-semibold">
+            {(["all", "menunggu", "terverifikasi", "perlu_cek"] as const).map((st) => (
+              <button
+                key={st}
+                type="button"
+                onClick={() => setStatusFilter(st)}
+                className={`min-h-9 px-2.5 rounded-md transition-colors ${
+                  statusFilter === st
+                    ? "bg-[#173e32] text-[#f5f1e8] shadow-sm"
+                    : "text-[#557267] hover:text-[#173e32]"
+                }`}
+              >
+                {st === "all" ? "Semua Status" : st === "menunggu" ? "Menunggu" : st === "terverifikasi" ? "Terverifikasi" : "Perlu Cek"}
+              </button>
+            ))}
+          </div>
+
+          {/* Risk Level Filter Dropdown */}
+          <select
+            value={riskFilter}
+            onChange={(e) => setRiskFilter(e.target.value as any)}
+            className="min-h-10 rounded-lg border border-[#173e32]/15 bg-[#fbfaf6] px-3 text-xs font-semibold text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#10b981]"
+            aria-label="Filter Tingkat Risiko"
+          >
+            <option value="all">Semua Tingkat Risiko</option>
+            <option value="kritis">Risiko Tinggi (Kritis)</option>
+            <option value="waspada">Perlu Perhatian (Waspada)</option>
+            <option value="normal">Normal</option>
+            <option value="tidak_tersedia">Data Tidak Tersedia</option>
+          </select>
         </div>
       </div>
 
-      {/* Table Container */}
-      <div className="overflow-hidden rounded-2xl border border-[#173e32]/12 bg-white shadow-2xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-[#173e32]/10 bg-[#fbfaf5] text-[#557267]">
-                <th className="py-3 px-4 font-semibold">Kabupaten</th>
-                <th className="py-3 px-4 font-semibold">Skor Risiko (AI / Final)</th>
-                <th className="py-3 px-4 font-semibold">Anomali FAPAR</th>
-                <th className="py-3 px-4 font-semibold">Curah Hujan (30h)</th>
-                <th className="py-3 px-4 font-semibold">Status Verifikasi</th>
-                <th className="py-3 px-4 font-semibold">Catatan Lapangan</th>
-                <th className="py-3 px-4 text-right font-semibold">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#173e32]/8">
-              {filteredItems.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-xs text-[#557267]">
-                    Tidak ada data kabupaten yang sesuai dengan filter pencarian.
-                  </td>
-                </tr>
-              ) : (
-                filteredItems.map((item) => {
-                  const isKritis = item.kategori === "kritis";
-                  const isWaspada = item.kategori === "waspada";
-                  const displayScore = item.skorOverride ?? item.skorRisiko;
+      {/* Result counter */}
+      {filteredItems.length > 0 && (
+        <p className="text-xs text-[#557267] px-1">
+          Menampilkan <span className="font-semibold text-[#173e32]">{visibleItems.length}</span> dari{" "}
+          <span className="font-semibold text-[#173e32]">{filteredItems.length}</span> kabupaten
+        </p>
+      )}
 
-                  return (
-                    <tr key={item.id} className="hover:bg-[#f5f1e8]/40 transition-colors">
-                      <td className="py-3.5 px-4 font-semibold text-[#173e32]">
+      {/* Main Verification Table / List */}
+      <section className="overflow-hidden rounded-xl border border-[#173e32]/12 bg-white shadow-sm">
+        {filteredItems.length === 0 ? (
+          <div className="py-12 text-center">
+            <ClipboardCheck className="mx-auto size-8 text-[#557267]/60" />
+            <p className="mt-2 text-sm font-semibold text-[#173e32]">Tidak ada kabupaten yang cocok</p>
+            <p className="mt-1 text-xs text-[#557267]">Coba ubah kata kunci pencarian atau reset filter.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-[#173e32]/10">
+            {visibleItems.map((item) => {
+              const rMeta = riskLabels[item.kategori];
+              const vMeta = verificationLabels[item.statusVerifikasi];
+              const VIcon = vMeta.icon;
+
+              return (
+                <article
+                  key={item.id}
+                  className="grid gap-3.5 p-4 sm:p-5 transition-colors hover:bg-[#fbfaf6] sm:grid-cols-[minmax(0,1.2fr)_auto] sm:items-center"
+                >
+                  <div className="min-w-0 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-serif text-base sm:text-lg font-bold text-[#173e32]">
                         {item.namaKabupaten}
-                        <span className="block text-[10px] font-mono font-normal text-[#557267]">
-                          Kode: {item.kodeKabupaten}
-                        </span>
-                      </td>
+                      </h3>
+                      <span className="font-mono text-[11px] text-[#557267] bg-[#f5f1e8] px-1.5 py-0.5 rounded border border-[#173e32]/10">
+                        {item.kodeKabupaten}
+                      </span>
+                      <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-bold ${rMeta.badgeClass}`}>
+                        {item.skorRisiko !== null ? `Skor ${item.skorRisiko.toFixed(2)}` : "Data Kosong"} — {rMeta.label}
+                      </span>
+                    </div>
 
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold ${
-                              isKritis
-                                ? "bg-[#bb5b42]/15 text-[#7c1d0f]"
-                                : isWaspada
-                                  ? "bg-[#966a13]/15 text-[#5e4107]"
-                                  : "bg-[#166534]/15 text-[#166534]"
-                            }`}
-                          >
-                            {displayScore.toFixed(2)} ({isKritis ? "Kritis" : isWaspada ? "Waspada" : "Normal"})
-                          </span>
-                          {item.skorOverride !== undefined && (
-                            <span className="text-[10px] text-[#966a13] font-semibold" title={`Skor AI awal: ${item.skorRisiko}`}>
-                              (Koreksi)
-                            </span>
-                          )}
-                        </div>
-                      </td>
+                    <p className="text-xs text-[#557267]">
+                      {item.provinsi} · Pembaruan satelit: {item.terakhirDiperbarui}
+                    </p>
 
-                      <td className="py-3.5 px-4 font-mono text-[#36564a]">
-                        {item.faparAnomaly > 0 ? `+${item.faparAnomaly}` : item.faparAnomaly}
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-1.5 text-[#36564a]">
-                          <CloudRain className="size-3.5 text-[#557267]" />
-                          <span>{item.curahHujanMm} mm</span>
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        {item.statusVerifikasi === "tervalidasi" ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#166534]">
-                            <CheckCircle2 className="size-3.5" />
-                            Tervalidasi
-                          </span>
-                        ) : item.statusVerifikasi === "dikoreksi" ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#966a13]">
-                            <Clock className="size-3.5" />
-                            Dikoreksi Operator
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#7c1d0f]">
-                            <AlertTriangle className="size-3.5" />
-                            Menunggu Review
-                          </span>
+                    <div className="mt-2 rounded-lg border border-[#173e32]/10 bg-[#f9f8f4] p-2.5 text-xs">
+                      <div className="flex items-center justify-between text-[11px] font-semibold text-[#557267]">
+                        <span>Catatan Lapangan Terakhir:</span>
+                        {item.diverifikasiOleh && (
+                          <span className="text-[10px] text-[#166534]">Oleh: {item.diverifikasiOleh}</span>
                         )}
-                      </td>
+                      </div>
+                      <p className="mt-1 text-[#36564a] leading-relaxed">
+                        {item.catatanOperator || "Belum ada catatan lapangan. Klik tombol di kanan untuk mengisi hasil pengamatan PPL."}
+                      </p>
+                    </div>
+                  </div>
 
-                      <td className="py-3.5 px-4 max-w-xs truncate text-[11px] text-[#557267]">
-                        {item.catatanOperator || "(Belum ada catatan)"}
-                      </td>
+                  <div className="flex flex-wrap items-center gap-3 sm:flex-col sm:items-end sm:justify-center">
+                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${vMeta.class}`}>
+                      <VIcon className="size-3.5" />
+                      <span>{vMeta.label}</span>
+                    </span>
 
-                      <td className="py-3.5 px-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => onOpenVerifyModal(item)}
-                          className="rounded-lg border border-[#173e32]/20 bg-white px-3 py-1.5 text-xs font-semibold text-[#173e32] hover:bg-[#dce7d7] transition-colors focus-visible:outline-2 focus-visible:outline-[#b97a16]"
-                        >
-                          Review & Koreksi
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
+                    <button
+                      type="button"
+                      onClick={() => onOpenVerifyModal(item)}
+                      className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-[#173e32]/25 bg-white px-3.5 py-2 text-xs font-bold text-[#173e32] hover:bg-[#173e32] hover:text-[#f5f1e8] transition-colors focus-visible:outline-2 focus-visible:outline-[#10b981]"
+                    >
+                      <ShieldCheck className="size-3.5" />
+                      <span>Catat Verifikasi</span>
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+
+            {/* Sentinel — triggers next batch load */}
+            <div ref={sentinelRef} aria-hidden="true" className="flex items-center justify-center py-6">
+              {hasMore ? (
+                <span className="inline-flex items-center gap-2 text-xs text-[#557267]">
+                  <Loader2 className="size-4 animate-spin text-[#10b981]" />
+                  Memuat lebih banyak data…
+                </span>
+              ) : (
+                <span className="text-xs text-[#557267]/60">Semua {filteredItems.length} kabupaten telah ditampilkan</span>
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

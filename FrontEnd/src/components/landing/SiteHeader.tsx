@@ -10,6 +10,8 @@ import {
 
 import { Button } from "@/components/ui/button";
 
+import { ProvinceSearchInput } from "@/components/landing/ProvinceSearchInput";
+
 const navigation = [
   { label: "Peta risiko", href: "/peta-risiko", route: true },
   { label: "Pilar pangan", href: "#pilar-pangan", route: false },
@@ -77,6 +79,11 @@ export function SiteHeader() {
             />
           </motion.div>
         </Link>
+
+        {/* Desktop search province input */}
+        <div className="hidden md:block w-52 lg:w-64 xl:w-72">
+          <ProvinceSearchInput placeholder="Cari provinsi..." />
+        </div>
 
         {/* Desktop navigation */}
         <nav
@@ -199,8 +206,25 @@ export function SiteHeader() {
               initial={shouldReduceMotion ? false : { y: -8 }}
               animate={{ y: 0 }}
               exit={shouldReduceMotion ? undefined : { y: -8 }}
-              className="flex flex-col gap-1 px-4 pb-5 pt-3 sm:px-7"
+              className="flex flex-col gap-2 px-4 pb-5 pt-3 sm:px-7"
             >
+              {/* Mobile Province Search */}
+              <div className="pb-2 pt-1 border-b border-[#173e32]/10">
+                <ProvinceSearchInput
+                  placeholder="Cari provinsi..."
+                  onSelect={(prov) => {
+                    closeMenu();
+                    const newParams = new URLSearchParams(window.location.search);
+                    newParams.set("prov", prov);
+                    window.history.pushState(null, "", `/?${newParams.toString()}`);
+                    window.dispatchEvent(new Event("popstate"));
+                    const targetElement = document.getElementById("status-wilayah");
+                    if (targetElement) {
+                      targetElement.scrollIntoView({ behavior: "smooth" });
+                    }
+                  }}
+                />
+              </div>
               {navigation.map((item, index) => {
                 const isActive =
                   item.route && location.pathname === item.href;
