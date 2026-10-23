@@ -23,6 +23,32 @@ def opsional(v):
     return v
 
 
+def alasan_vegetasi_kosong(r):
+    """Terjemahkan alasan_baris jadi teks yang bisa dibaca (untuk FAPAR kosong)."""
+    if r["kategori"] != "data tidak tersedia":
+        return None
+    kode = r.get("alasan_baris")
+    if pd.isna(kode):
+        return None
+    peta = {
+        "data_tipis": "Data satelit vegetasi terlalu sedikit untuk dinilai (tertutup awan).",
+        "fapar_kosong_dekad_ini": "Data satelit vegetasi kosong pada periode ini.",
+        "kebiasaan_kurang": "Riwayat data vegetasi wilayah ini terlalu pendek untuk dinilai.",
+        "tanpa_kebiasaan": "Wilayah ini belum punya riwayat data vegetasi yang cukup.",
+    }
+    return peta.get(kode, f"Data vegetasi tidak tersedia ({kode}).")
+
+
+def alasan_cuaca_kosong(r):
+    """Ambil alasan cuaca kosong dari alasan_teks jika kodenya tanpa_data_curah_hujan."""
+    if r.get("alasan_kode") == "tanpa_data_curah_hujan":
+        teks = r.get("alasan_teks")
+        if pd.notna(teks):
+            return str(teks)
+        return "Data curah hujan belum tersedia untuk wilayah ini."
+    return None
+
+
 def ke_item(r):
     return {
         # --- field wajib (kontrak dummy) ---
@@ -47,6 +73,9 @@ def ke_item(r):
         "rfq": opsional(r["rfq"]),
         "r1q": opsional(r["r1q"]),
         "r3q": opsional(r["r3q"]),
+        # --- tambahan: alasan data kosong (untuk GenAI) ---
+        "alasan_vegetasi_kosong": alasan_vegetasi_kosong(r),
+        "alasan_cuaca_kosong": alasan_cuaca_kosong(r),
     }
 
 
