@@ -2,5 +2,45 @@ import { ClipboardCheck, MapPinned } from "lucide-react"
 import { Reveal } from "./Reveal"
 
 export function InterventionSection() {
-  return <section id="intervensi" className="border-b border-[#173e32]/10 bg-[#dce7d7]/45 px-4 py-16 sm:px-6 sm:py-24 lg:px-8"><div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-center"><Reveal><div><p className="text-sm font-semibold text-[#557267]">Dari risiko ke respons</p><h2 className="mt-3 font-serif text-4xl leading-tight tracking-[-0.035em] sm:text-5xl">Pantau tindak lanjut di lapangan.</h2><p className="mt-5 max-w-lg text-base leading-7 text-[#36564a]">Catatan mitigasi membantu memberi konteks setelah suatu wilayah ditandai perlu perhatian.</p></div></Reveal><Reveal><div className="rounded-2xl border border-[#173e32]/15 bg-[#fbfaf5] p-6 shadow-[0_16px_40px_rgba(23,62,50,0.08)] sm:p-8"><div className="flex items-start gap-4"><span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#173e32] text-[#f5f1e8]"><ClipboardCheck className="size-5" /></span><div><h3 className="text-lg font-semibold">Status intervensi</h3><p className="mt-1 text-sm leading-6 text-[#557267]">Belum ada catatan intervensi yang terhubung.</p></div></div><div className="mt-8 grid gap-3 border-t border-[#173e32]/10 pt-5 sm:grid-cols-2"><p className="flex items-center gap-2 text-sm text-[#36564a]"><MapPinned className="size-4 text-[#b97a16]" />Akan ditampilkan per wilayah.</p><p className="text-sm text-[#36564a]">Sumber data operator diperlukan.</p></div></div></Reveal></div></section>
+  return (
+    <section id="intervensi" className="border-b border-[#173e32]/10 bg-[#dce7d7]/45 px-4 py-16 sm:px-6 sm:py-24 lg:px-10 xl:px-12">
+      <div className="mx-auto grid w-full max-w-[1680px] gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:justify-between">
+        <Reveal>
+          <div>
+            <p className="text-sm font-semibold text-[#557267]">Dari risiko ke respons</p>
+            <h2 className="mt-3 font-serif text-4xl leading-tight tracking-[-0.035em] sm:text-5xl">
+              Pantau tindak lanjut di lapangan.
+            </h2>
+            <p className="mt-5 text-base leading-7 text-[#36564a]">
+              Catatan mitigasi membantu memberi konteks setelah suatu wilayah ditandai perlu perhatian.
+            </p>
+          </div>
+        </Reveal>
+        <Reveal>
+          <div className="rounded-2xl border border-[#173e32]/15 bg-[#fbfaf5] p-6 shadow-[0_16px_40px_rgba(23,62,50,0.08)] sm:p-8">
+            <div className="flex items-start gap-4">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#173e32] text-[#f5f1e8]">
+                <ClipboardCheck className="size-5" />
+              </span>
+              <div>
+                <h3 className="text-lg font-semibold">Status intervensi</h3>
+                <p className="mt-1 text-sm leading-6 text-[#557267]">
+                  Belum ada catatan intervensi yang terhubung.
+                </p>
+              </div>
+            </div>
+            <div className="mt-8 grid gap-3 border-t border-[#173e32]/10 pt-5 sm:grid-cols-2">
+              <p className="flex items-center gap-2 text-sm text-[#36564a]">
+                <MapPinned className="size-4 text-[#b97a16]" />
+                Akan ditampilkan per wilayah.
+              </p>
+              <p className="text-sm text-[#36564a]">
+                Sumber data operator diperlukan.
+              </p>
+            </div>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  )
 }

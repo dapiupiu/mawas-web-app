@@ -55,7 +55,7 @@ export function FAQ() {
               />
             </button>
             {isOpen && (
-              <p className="max-w-2xl pb-5 pr-8 text-sm leading-6 text-[#36564a]">
+              <p className="w-full pb-5 pr-4 text-sm leading-relaxed text-[#36564a]">
                 {answer}
               </p>
             )}
