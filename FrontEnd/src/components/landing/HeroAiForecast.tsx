@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { risikoApi, type RiskTrendResponse } from "@/lib/api";
 
 interface ForecastDataPoint {
   period: string;
@@ -9,41 +10,50 @@ interface ForecastDataPoint {
   status: "aman" | "waspada" | "kritis";
 }
 
-const SUMUT_FORECAST: ForecastDataPoint[] = [
-  { period: "Minggu 1", label: "H+7", value: 0.31, status: "aman" },
-  { period: "Minggu 2", label: "H+14", value: 0.43, status: "waspada" },
-  { period: "Minggu 3", label: "H+21", value: 0.54, status: "kritis" },
-  { period: "Minggu 4", label: "H+30", value: 0.48, status: "waspada" },
-];
-
-const NATIONAL_FORECAST: ForecastDataPoint[] = [
-  { period: "Minggu 1", label: "H+7", value: 0.22, status: "aman" },
-  { period: "Minggu 2", label: "H+14", value: 0.35, status: "aman" },
-  { period: "Minggu 3", label: "H+21", value: 0.44, status: "waspada" },
-  { period: "Minggu 4", label: "H+30", value: 0.39, status: "aman" },
-];
-
 export function HeroAiForecast() {
   const shouldReduceMotion = useReducedMotion();
-  const [hasLocation, setHasLocation] = useState<boolean>(() => {
-    return localStorage.getItem("mawas_location_status") === "granted";
-  });
+  const [trend, setTrend] = useState<RiskTrendResponse | null>(null);
+  const [isLoadingTrend, setIsLoadingTrend] = useState(true);
+  const [trendError, setTrendError] = useState(false);
 
   useEffect(() => {
-    const handleUpdate = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      setHasLocation(customEvent.detail?.status === "granted");
-    };
-    window.addEventListener("mawas_location_updated", handleUpdate);
+    let active = true;
+    risikoApi
+      .getRiskTrend()
+      .then((result) => {
+        if (active) setTrend(result);
+      })
+      .catch((error) => {
+        console.error("Gagal memuat tren risiko dari backend:", error);
+        if (active) {
+          setTrend(null);
+          setTrendError(true);
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoadingTrend(false);
+      });
     return () => {
-      window.removeEventListener("mawas_location_updated", handleUpdate);
+      active = false;
     };
   }, []);
 
-  const forecastData = hasLocation ? SUMUT_FORECAST : NATIONAL_FORECAST;
-  const regionName = hasLocation ? "Sumatera Utara" : "Nasional";
-  const peakPoint = forecastData.reduce((prev, curr) =>
-    curr.value > prev.value ? curr : prev,
+  const forecastData: ForecastDataPoint[] = (trend?.trend || []).map((point) => {
+    const date = new Date(`${point.tanggal}T00:00:00`);
+    const label = Number.isNaN(date.getTime())
+      ? point.tanggal
+      : date.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
+    return {
+      period: label,
+      label,
+      value: point.skor,
+      status: point.skor >= 0.5 ? "kritis" : point.skor >= 0.4 ? "waspada" : "aman",
+    };
+  });
+  const regionName = trend?.wilayah || "Nasional";
+  const peakPoint = forecastData.reduce<ForecastDataPoint | null>(
+    (peak, current) => (!peak || current.value > peak.value ? current : peak),
+    null,
   );
 
   // SVG Chart dimensions — Lebih lebar, luas, dan proporsional
@@ -54,7 +64,11 @@ export function HeroAiForecast() {
 
   const points = forecastData.map((d, index) => {
     const x =
-      paddingX + (index / (forecastData.length - 1)) * (width - 2 * paddingX);
+      paddingX +
+      (forecastData.length === 1
+        ? 0.5
+        : index / (forecastData.length - 1)) *
+        (width - 2 * paddingX);
     // 0 is at bottom (height - paddingY), 1 is at top (paddingY)
     const y = height - paddingY - d.value * (height - 2 * paddingY);
     return { x, y, ...d };
@@ -71,9 +85,11 @@ export function HeroAiForecast() {
     return `${acc} C ${cpX1} ${cpY1}, ${cpX2} ${cpY2}, ${curr.x} ${curr.y}`;
   }, "");
 
-  const areaPath = `${linePath} L ${points[points.length - 1].x} ${
-    height - paddingY
-  } L ${points[0].x} ${height - paddingY} Z`;
+  const areaPath = points.length
+    ? `${linePath} L ${points[points.length - 1].x} ${
+        height - paddingY
+      } L ${points[0].x} ${height - paddingY} Z`
+    : "";
 
   // Critical threshold Y (value = 0.50)
   const thresholdY = height - paddingY - 0.5 * (height - 2 * paddingY);
@@ -84,7 +100,7 @@ export function HeroAiForecast() {
       <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-[#173e32]/10 pb-2.5">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wider text-[#557267]">
-            Perkiraan AI 30 Hari Kedepan
+            Tren Risiko Aktual
           </p>
           <h3 className="font-serif text-lg font-bold text-[#173e32]">
             Fokus Wilayah: {regionName}
@@ -95,7 +111,7 @@ export function HeroAiForecast() {
         <div className="flex items-center gap-4 text-[11px] text-[#557267]">
           <div className="flex items-center gap-1.5">
             <span className="h-0.5 w-4 rounded-full bg-[#173e32]" aria-hidden="true" />
-            <span className="font-medium text-[#36564a]">Indeks Stres</span>
+            <span className="font-medium text-[#36564a]">Rata-rata skor risiko (0–1)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="h-0 w-3.5 border-b border-dashed border-[#c0392b]" aria-hidden="true" />
@@ -109,7 +125,7 @@ export function HeroAiForecast() {
         <svg
           viewBox={`0 0 ${width} ${height}`}
           className="h-36 w-full overflow-visible sm:h-44"
-          aria-label="Grafik proyeksi stres vegetasi 30 hari"
+          aria-label="Grafik tren skor risiko aktual"
         >
           <defs>
             <linearGradient id="transparentAreaGradient" x1="0" y1="0" x2="0" y2="1">
@@ -157,6 +173,17 @@ export function HeroAiForecast() {
           {/* Area gradien transparan */}
           <path d={areaPath} fill="url(#transparentAreaGradient)" />
 
+          {forecastData.length === 0 && (
+            <text
+              x={width / 2}
+              y={height / 2}
+              textAnchor="middle"
+              className="font-sans text-[12px] fill-[#557267]"
+            >
+              {isLoadingTrend ? "Memuat tren risiko..." : "Data tren belum tersedia"}
+            </text>
+          )}
+
           {/* Garis tren utama */}
           <path
             d={linePath}
@@ -169,7 +196,7 @@ export function HeroAiForecast() {
 
           {/* Titik data interaktif */}
           {points.map((pt) => {
-            const isPeak = pt.period === peakPoint.period;
+            const isPeak = pt.period === peakPoint?.period;
             const dotColor =
               pt.value >= 0.5
                 ? "#c0392b"
@@ -232,32 +259,37 @@ export function HeroAiForecast() {
             className="cursor-pointer w-full sm:max-w-[450px] rounded-xl border border-[#173e32]/12 bg-[#ffffff]/94 p-3.5 shadow-md backdrop-blur-md transition-colors hover:border-[#173e32]/25"
           >
             <div className="flex items-start gap-2.5">
-              {hasLocation ? (
+              {(trend?.rata_rata_skor || 0) >= 0.5 ? (
                 <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[#c0392b]" />
               ) : (
                 <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#4caf7d]" />
               )}
               <div className="text-[11.5px] leading-relaxed text-[#36564a]">
-                {hasLocation ? (
+                {trendError ? (
                   <p>
                     <strong className="font-semibold text-[#173e32]">
-                      Prediksi Risiko Meningkat:
+                      Data tren tidak tersedia.
                     </strong>{" "}
-                    Wilayah Sumut berpotensi mencapai puncak stres vegetasi (
-                    <span className="font-mono font-bold text-[#c0392b]">
-                      0.54
-                    </span>
-                    ) pada H+21 karena defisit curah hujan 30 hari. Sentra padi
-                    pesisir timur disarankan siaga pompanisasi.
+                    Periksa koneksi Backend dan ketersediaan data risiko.
+                  </p>
+                ) : trend?.rata_rata_skor === null || !trend ? (
+                  <p>
+                    <strong className="font-semibold text-[#173e32]">
+                      Belum ada data risiko yang dapat diringkas.
+                    </strong>{" "}
+                    Grafik akan tampil setelah tersedia snapshot risiko dari Backend.
                   </p>
                 ) : (
                   <p>
                     <strong className="font-semibold text-[#173e32]">
-                      Kondisi Nasional Terkendali:
+                      Ringkasan {regionName}:
                     </strong>{" "}
-                    Mayoritas lumbung pangan berada di ambang aman ke waspada
-                    ringan (rata-rata 0.35). Pemantauan difokuskan pada anomali
-                    presipitasi transisi musim.
+                    skor risiko rata-rata{" "}
+                    <span className="font-mono font-bold text-[#173e32]">
+                      {trend.rata_rata_skor.toFixed(2)}
+                    </span>{" "}
+                    pada {trend.total_wilayah} kabupaten/kota. Grafik menampilkan
+                    tanggal snapshot yang benar-benar tersedia.
                   </p>
                 )}
               </div>
@@ -266,10 +298,15 @@ export function HeroAiForecast() {
             {/* Quick stats badges di dalam box */}
             <div className="mt-2.5 flex items-center justify-between border-t border-[#173e32]/8 pt-2 text-[10.5px]">
               <span className="font-medium text-[#173e32]">
-                Akurasi Model: <strong className="font-mono font-bold">92.4%</strong>
+                Wilayah terdata:{" "}
+                <strong className="font-mono font-bold">
+                  {trend?.total_wilayah ?? 0}
+                </strong>
               </span>
               <span className="rounded bg-[#b97a16]/12 px-2 py-0.5 font-medium text-[#8a6000]">
-                Puncak: {peakPoint.period} ({peakPoint.label})
+                {peakPoint
+                  ? `Tertinggi: ${peakPoint.period} (${peakPoint.value.toFixed(2)})`
+                  : "Snapshot: belum tersedia"}
               </span>
             </div>
           </motion.div>

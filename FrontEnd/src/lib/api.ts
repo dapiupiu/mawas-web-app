@@ -63,6 +63,74 @@ export interface RisikoItem {
   r3q?: number
 }
 
+export interface RiskTrendResponse {
+  wilayah: string
+  tanggal_terakhir: string | null
+  total_wilayah: number
+  rata_rata_skor: number | null
+  distribusi: {
+    kritis: number
+    waspada: number
+    normal: number
+    tidak_tersedia: number
+  }
+  trend: Array<{
+    tanggal: string
+    skor: number
+    jumlah_wilayah: number
+  }>
+}
+
+type RiskApiItem = Partial<RisikoItem> & {
+  kategori?: string
+  skor_risiko?: number | string | null
+  kabupaten?: { id_fe?: string }
+}
+
+function normalizeRiskItem(item: RiskApiItem, databaseScore = false): RisikoItem {
+  let score = item.skor_risiko === null || item.skor_risiko === undefined
+    ? null
+    : Number(item.skor_risiko)
+  if (score !== null && Number.isFinite(score) && databaseScore && score <= 1) {
+    score *= 100
+  }
+  if (score !== null && !Number.isFinite(score)) score = null
+
+  const category = (item.kategori || "").toLowerCase().trim()
+  let normalizedCategory: RisikoItem["kategori"] = "data tidak tersedia"
+  if (score !== null) {
+    if (category === "tinggi" || category === "kritis") normalizedCategory = "tinggi"
+    else if (category === "sedang" || category === "waspada" || category === "warning") normalizedCategory = "sedang"
+    else if (category === "rendah" || category === "normal" || category === "aman") normalizedCategory = "rendah"
+  }
+
+  return {
+    ...item,
+    kode_kabupaten: item.kode_kabupaten || "",
+    nama_kabupaten: item.nama_kabupaten || "",
+    skor_risiko: score,
+    kategori: normalizedCategory,
+    status_data: item.status_data || "model",
+    id_fe: item.id_fe || item.kabupaten?.id_fe,
+  }
+}
+
+export function latestRisikoPerKabupaten(items: RisikoItem[]): RisikoItem[] {
+  const latest = new Map<string, RisikoItem>()
+  for (const item of items) {
+    const current = latest.get(item.kode_kabupaten)
+    if (
+      !current ||
+      (item.tanggal || "") > (current.tanggal || "") ||
+      ((item.tanggal || "") === (current.tanggal || "") &&
+        (item.horizon_hari || 0) > (current.horizon_hari || 0))
+    ) {
+      latest.set(item.kode_kabupaten, item)
+    }
+  }
+  return Array.from(latest.values())
+}
+
 export interface AnalisisAIResponse {
   kode_kabupaten: string
   nama_kabupaten: string
@@ -207,9 +275,35 @@ export function checkAndStoreOAuthCallback(): boolean {
 // ─── Risiko endpoints ─────────────────────────────────────────────────────────
 
 let cachedRisikoItems: RisikoItem[] | null = null
+let cachedFeIdByCode: Promise<Map<string, string>> | null = null
+
+async function getStaticFeIdByCode(): Promise<Map<string, string>> {
+  if (!cachedFeIdByCode) {
+    cachedFeIdByCode = (async () => {
+      const idByCode = new Map<string, string>()
+      try {
+        const response = await fetch("/data/risiko_kabupaten_terbaru.json")
+        if (!response.ok) {
+          throw new Error(`Status ${response.status}`)
+        }
+        const json = await response.json()
+        const items = Array.isArray(json) ? json : json.data || []
+        for (const item of items as RiskApiItem[]) {
+          if (item.kode_kabupaten && item.id_fe) {
+            idByCode.set(item.kode_kabupaten, item.id_fe)
+          }
+        }
+      } catch (error) {
+        console.warn("Gagal memuat indeks id_fe untuk mencocokkan risiko ke geometri peta.", error)
+      }
+      return idByCode
+    })()
+  }
+  return cachedFeIdByCode
+}
 
 export const risikoApi = {
-  /** Fetch semua data risiko wilayah dari backend (/api/risiko) dengan fallback ke static JSON */
+  /** Fetch risiko dari backend; JSON lokal hanya menjadi fallback saat backend gagal. */
   async getAllRisiko(): Promise<RisikoItem[]> {
     if (cachedRisikoItems && cachedRisikoItems.length > 0) {
       return cachedRisikoItems
@@ -219,14 +313,22 @@ export const risikoApi = {
       const { data } = await api.get<{
         status: string
         total: number
-        data: RisikoItem[]
+        data: RiskApiItem[]
       }>("/api/risiko", { timeout: 3000 })
-      if (data && Array.isArray(data.data) && data.data.length > 0) {
-        cachedRisikoItems = data.data
-        return cachedRisikoItems
+      if (data && Array.isArray(data.data)) {
+        const feIdByCode = await getStaticFeIdByCode()
+        const normalizedItems = data.data.map((item) => {
+          const normalized = normalizeRiskItem(item, true)
+          return {
+            ...normalized,
+            id_fe: normalized.id_fe || feIdByCode.get(normalized.kode_kabupaten),
+          }
+        })
+        cachedRisikoItems = normalizedItems
+        return normalizedItems
       }
-    } catch {
-      // Backend offline atau belum di-seed, fallback ke output model statis
+    } catch (error) {
+      console.warn("Backend risiko tidak tersedia; mencoba data JSON lokal.", error)
     }
 
     try {
@@ -234,14 +336,29 @@ export const risikoApi = {
       if (response.ok) {
         const json = await response.json()
         const items = Array.isArray(json) ? json : json.data || []
-        cachedRisikoItems = items
-        return items
+        const normalizedItems = items.map((item: RiskApiItem) => normalizeRiskItem(item))
+        cachedRisikoItems = normalizedItems
+        return normalizedItems
       }
     } catch (err) {
       console.warn("Gagal membaca berkas risiko_kabupaten_terbaru.json:", err)
     }
 
     return []
+  },
+
+  async getRiskTrend(provinsi?: string): Promise<RiskTrendResponse> {
+    const { data } = await api.get<{ status: string; data: RiskTrendResponse }>(
+      "/api/risiko/trend-nasional",
+      {
+        params: provinsi ? { provinsi } : undefined,
+        timeout: 5000,
+      },
+    )
+    if (!data?.data) {
+      throw new Error("Respons tren risiko dari server tidak valid.")
+    }
+    return data.data
   },
 
   /** Fetch detail risiko berdasarkan kode_kabupaten atau id_fe */
@@ -251,7 +368,7 @@ export const risikoApi = {
         status: string
         data: RisikoItem
       }>(`/api/risiko/${kodeOrId}`, { timeout: 3000 })
-      if (data?.data) return data.data
+      if (data?.data) return normalizeRiskItem(data.data, true)
     } catch {
       // Fallback ke cache/static data
     }
@@ -368,4 +485,3 @@ export const risikoApi = {
     }
   },
 }
-

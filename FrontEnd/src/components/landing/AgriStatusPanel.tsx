@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { CheckCircle2, Clock, HelpCircle, Info, MapPin } from "lucide-react";
 import { Reveal } from "./Reveal";
-import { risikoApi, type RisikoItem } from "@/lib/api";
+import { latestRisikoPerKabupaten, risikoApi, type RisikoItem } from "@/lib/api";
 import { matchProvince } from "@/lib/provinces";
 
 export interface AgriStatusPanelProps {
@@ -51,7 +51,7 @@ export function AgriStatusPanel({ selectedProvince: propProvince }: AgriStatusPa
       .getAllRisiko()
       .then((items) => {
         if (active) {
-          setAllRisiko(items);
+          setAllRisiko(latestRisikoPerKabupaten(items));
           setIsLoading(false);
         }
       })
@@ -114,9 +114,22 @@ export function AgriStatusPanel({ selectedProvince: propProvince }: AgriStatusPa
   // If no kabupaten match (e.g. province name typo), fallback to first available
   const displayedKabupaten = useMemo(() => {
     if (provinceKabupaten.length > 0) return provinceKabupaten;
-    // Fallback: return top critical items from national dataset
-    return allRisiko.slice(0, 15);
-  }, [provinceKabupaten, allRisiko]);
+    return [];
+  }, [provinceKabupaten]);
+
+  const latestDate = useMemo(() => {
+    const dates = allRisiko
+      .map((item) => item.tanggal)
+      .filter((date): date is string => Boolean(date))
+      .sort();
+    const date = dates[dates.length - 1];
+    if (!date) return "Tanggal data tidak tersedia";
+    return `Kondisi per ${new Date(`${date}T00:00:00`).toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })} (Horizon 30 hari)`;
+  }, [allRisiko]);
 
   // Statistics count
   const summaryCounts = useMemo(() => {
@@ -153,7 +166,7 @@ export function AgriStatusPanel({ selectedProvince: propProvince }: AgriStatusPa
                 </span>
                 <span className="inline-flex items-center gap-1 rounded bg-[#b97a16]/15 px-2.5 py-0.5 text-[11px] font-semibold text-[#8c570b]">
                   <Clock size={12} />
-                  Kondisi per 11 Sep 2026 (Horizon 30 hari)
+                  {latestDate}
                 </span>
               </div>
               <h2 className="mt-2 font-serif text-2xl tracking-[-0.03em] text-[#173e32] sm:text-3xl lg:text-4xl">
@@ -202,6 +215,16 @@ export function AgriStatusPanel({ selectedProvince: propProvince }: AgriStatusPa
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#173e32]/8">
+                  {displayedKabupaten.length === 0 && !isLoading && (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="py-10 text-center text-sm text-[#557267]"
+                      >
+                        Belum ada data risiko untuk {activeProvince}.
+                      </td>
+                    </tr>
+                  )}
                   {displayedKabupaten.map((item, index) => {
                     const kat = (item.kategori || "data tidak tersedia").toLowerCase() as keyof typeof CATEGORY_CONFIG;
                     const cfg = CATEGORY_CONFIG[kat] || CATEGORY_CONFIG["data tidak tersedia"];
@@ -210,7 +233,7 @@ export function AgriStatusPanel({ selectedProvince: propProvince }: AgriStatusPa
                       ? rawFaktor.join(", ")
                       : rawFaktor || (item.skor_risiko === null ? "Data satelit vegetasi pada periode ini terlalu sedikit (awan/tutupan)" : "Kondisi vegetasi normal");
 
-                    const hasWeather = item.punya_data_cuaca !== false;
+                    const hasWeather = item.punya_data_cuaca === true;
 
                     return (
                       <motion.tr
@@ -268,13 +291,21 @@ export function AgriStatusPanel({ selectedProvince: propProvince }: AgriStatusPa
                               <CheckCircle2 size={13} className="text-[#6d9670]" />
                               Tercakup
                             </span>
-                          ) : (
+                          ) : item.punya_data_cuaca === false ? (
                             <span
                               className="inline-flex items-center gap-1 text-[11px] font-medium text-[#b97a16]"
                               title="Belum memiliki stasiun CHIRPS BMKG (Pemekaran Papua 2022)"
                             >
                               <HelpCircle size={13} />
                               Pemekaran 2022
+                            </span>
+                          ) : (
+                            <span
+                              className="inline-flex items-center gap-1 text-[11px] font-medium text-[#64748b]"
+                              title="Informasi cakupan cuaca tidak tersedia pada sumber data ini"
+                            >
+                              <HelpCircle size={13} />
+                              Tidak tercantum
                             </span>
                           )}
                         </td>

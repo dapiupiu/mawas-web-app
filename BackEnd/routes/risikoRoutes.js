@@ -8,6 +8,12 @@ const { authenticateToken, authorizeRoles } = require('../middlewares/authMiddle
 router.get('/', risikoController.getAllRisiko);
 router.get('/summary', risikoController.getDashboardSummary); // Widget Banner Top Dashboard
 router.get('/trend-nasional', risikoController.getTrenNasional); // Grafik Tren Landing Page Section 1
+router.post(
+  '/import',
+  authenticateToken,
+  authorizeRoles('operator', 'superadmin'),
+  risikoController.importRisiko
+);
 router.get('/:kode', risikoController.getRisikoByKode);
 router.get('/:kode/analisis', analisisController.getAnalisisWilayah);
 

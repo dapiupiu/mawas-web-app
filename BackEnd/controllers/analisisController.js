@@ -14,22 +14,44 @@ exports.getAnalisisWilayah = async (req, res) => {
       .from('risiko_wilayah')
       .select('*')
       .eq('kode_kabupaten', kode)
-      .single();
+      .order('tanggal', { ascending: false })
+      .order('horizon_hari', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (error || !kabupaten) {
       return res.status(404).json({ error: "Data wilayah tidak ditemukan." });
     }
 
-    // 2. Panggil Gemini Service untuk generate narasi AI
-    const analisisAI = await generateAnalisisRisiko(kabupaten);
+    const score = kabupaten.skor_risiko === null
+      ? null
+      : Number(kabupaten.skor_risiko);
+    const normalizedScore = score !== null && score <= 1 ? score * 100 : score;
+    const categoryMap = {
+      kritis: 'tinggi',
+      waspada: 'sedang',
+      normal: 'rendah',
+      tidak_tersedia: 'data tidak tersedia',
+    };
+    const normalizedCategory = normalizedScore === null
+      ? 'data tidak tersedia'
+      : categoryMap[String(kabupaten.kategori || '').toLowerCase()] || 'data tidak tersedia';
+    const normalizedRisk = {
+      ...kabupaten,
+      skor_risiko: normalizedScore,
+      kategori: normalizedCategory,
+    };
+
+    // 2. Panggil Gemini dengan kategori dan skor yang digunakan UI (0-100).
+    const analisisAI = await generateAnalisisRisiko(normalizedRisk);
 
     // 3. Gabungkan data ML + hasil Analisis AI
     return res.status(200).json({
       kode_kabupaten: kabupaten.kode_kabupaten,
       nama_kabupaten: kabupaten.nama_kabupaten,
       tanggal: kabupaten.tanggal,
-      skor_risiko: kabupaten.skor_risiko,
-      kategori: kabupaten.kategori,
+      skor_risiko: normalizedScore,
+      kategori: normalizedCategory,
       faktor_penyebab: kabupaten.faktor_penyebab,
       analisis_ai: {
         penjelasan: analisisAI.penjelasan,
