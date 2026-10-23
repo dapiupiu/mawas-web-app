@@ -1,381 +1,304 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { MapPin, Globe } from "lucide-react";
+import { CheckCircle2, Clock, HelpCircle, Info, MapPin } from "lucide-react";
 import { Reveal } from "./Reveal";
+import { risikoApi, type RisikoItem } from "@/lib/api";
+import { matchProvince } from "@/lib/provinces";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type RiskLevel = "rendah" | "perlu_perhatian" | "tinggi";
-
-interface KabupatenRow {
-  name: string;
-  level: RiskLevel;
-  fapar: string; // e.g. "-0.18"
-  stressIndex: string; // e.g. "0.41"
-  trend: "naik" | "stabil" | "turun";
+export interface AgriStatusPanelProps {
+  selectedProvince?: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// Demo data per context — labeled as illustrative [REAL DATA]
-// ---------------------------------------------------------------------------
-
-// Kabupaten di Sumatera Utara (contoh ketika lokasi = Sumut)
-const SUMUT_KABUPATEN: KabupatenRow[] = [
-  { name: "Deli Serdang",         level: "rendah",          fapar: "+0.05",  stressIndex: "0.18", trend: "stabil" },
-  { name: "Serdang Bedagai",      level: "rendah",          fapar: "+0.02",  stressIndex: "0.22", trend: "turun"  },
-  { name: "Tapanuli Tengah",      level: "rendah",          fapar: "+0.01",  stressIndex: "0.26", trend: "stabil" },
-  { name: "Samosir",              level: "rendah",          fapar: "-0.03",  stressIndex: "0.29", trend: "stabil" },
-  { name: "Langkat",              level: "perlu_perhatian", fapar: "-0.12",  stressIndex: "0.43", trend: "naik"   },
-  { name: "Karo",                 level: "perlu_perhatian", fapar: "-0.16",  stressIndex: "0.48", trend: "naik"   },
-  { name: "Simalungun",           level: "perlu_perhatian", fapar: "-0.18",  stressIndex: "0.52", trend: "stabil" },
-  { name: "Tapanuli Selatan",     level: "perlu_perhatian", fapar: "-0.21",  stressIndex: "0.57", trend: "naik"   },
-  { name: "Labuhanbatu",          level: "tinggi",          fapar: "-0.28",  stressIndex: "0.68", trend: "naik"   },
-  { name: "Padang Lawas",         level: "tinggi",          fapar: "-0.33",  stressIndex: "0.74", trend: "naik"   },
-  { name: "Asahan",               level: "tinggi",          fapar: "-0.35",  stressIndex: "0.79", trend: "naik"   },
-];
-
-// Ranking provinsi Indonesia (fallback tanpa lokasi)
-const PROVINCE_FALLBACK: KabupatenRow[] = [
-  { name: "Sumatera Barat",       level: "rendah",          fapar: "+0.04",  stressIndex: "0.12", trend: "turun"  },
-  { name: "Sulawesi Selatan",     level: "rendah",          fapar: "+0.01",  stressIndex: "0.18", trend: "stabil" },
-  { name: "Kalimantan Timur",     level: "rendah",          fapar: "-0.02",  stressIndex: "0.24", trend: "stabil" },
-  { name: "Jawa Tengah",          level: "perlu_perhatian", fapar: "-0.14",  stressIndex: "0.42", trend: "naik"   },
-  { name: "Nusa Tenggara Timur",  level: "perlu_perhatian", fapar: "-0.19",  stressIndex: "0.55", trend: "naik"   },
-  { name: "Jawa Timur",           level: "perlu_perhatian", fapar: "-0.22",  stressIndex: "0.61", trend: "stabil" },
-  { name: "Sulawesi Tengah",      level: "tinggi",          fapar: "-0.29",  stressIndex: "0.73", trend: "naik"   },
-  { name: "Papua Selatan",        level: "tinggi",          fapar: "-0.38",  stressIndex: "0.81", trend: "naik"   },
-];
-
-// ---------------------------------------------------------------------------
-// Level config
-// ---------------------------------------------------------------------------
-
-const LEVEL = {
-  rendah: {
-    label: "Normal",
-    bar: "bg-[#4caf7d]",
-    text: "text-[#1f5c3a]",
-    bg: "bg-[#1f5c3a]/8",
-    dot: "bg-[#4caf7d]",
-    faparColor: "text-[#1f5c3a]",
-  },
-  perlu_perhatian: {
-    label: "Perlu perhatian",
-    bar: "bg-[#d4a028]",
-    text: "text-[#8a6000]",
-    bg: "bg-[#b97a16]/8",
-    dot: "bg-[#d4a028]",
-    faparColor: "text-[#8a6000]",
-  },
+const CATEGORY_CONFIG = {
   tinggi: {
-    label: "Risiko tinggi",
-    bar: "bg-[#c0392b]",
-    text: "text-[#7a1a1a]",
-    bg: "bg-[#c0392b]/8",
-    dot: "bg-[#c0392b]",
-    faparColor: "text-[#c0392b]",
+    label: "Merah: Kritis",
+    badgeBg: "bg-[#ef4444]/15 text-[#991b1b] border border-[#ef4444]/30",
+    dot: "bg-[#ef4444]",
+    bar: "bg-[#ef4444]",
   },
-} satisfies Record<RiskLevel, object>;
+  sedang: {
+    label: "Kuning: Warning",
+    badgeBg: "bg-[#eab308]/20 text-[#854d0e] border border-[#eab308]/40",
+    dot: "bg-[#eab308]",
+    bar: "bg-[#eab308]",
+  },
+  rendah: {
+    label: "Hijau: Normal",
+    badgeBg: "bg-[#22c55e]/15 text-[#166534] border border-[#22c55e]/30",
+    dot: "bg-[#22c55e]",
+    bar: "bg-[#22c55e]",
+  },
+  "data tidak tersedia": {
+    label: "Hijau: Normal (Pemantauan)",
+    badgeBg: "bg-[#22c55e]/15 text-[#166534] border border-[#22c55e]/30",
+    dot: "bg-[#22c55e]",
+    bar: "bg-[#22c55e]",
+  },
+} as const;
 
-const TREND_ARROW: Record<string, string> = {
-  naik: "↑",
-  stabil: "–",
-  turun: "↓",
-};
-
-const TREND_COLOR: Record<string, string> = {
-  naik: "text-[#c0392b]",
-  stabil: "text-[#557267]",
-  turun: "text-[#4caf7d]",
-};
-
-// ---------------------------------------------------------------------------
-// TableRow
-// ---------------------------------------------------------------------------
-
-function TableRow({
-  row,
-  index,
-  isProvince,
-}: {
-  row: KabupatenRow;
-  index: number;
-  isProvince: boolean;
-}) {
-  const cfg = LEVEL[row.level];
+export function AgriStatusPanel({ selectedProvince: propProvince }: AgriStatusPanelProps) {
+  const [searchParams] = useSearchParams();
+  const [allRisiko, setAllRisiko] = useState<RisikoItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [userProvince, setUserProvince] = useState<string | null>(null);
   const shouldReduceMotion = useReducedMotion();
 
-  return (
-    <motion.tr
-      initial={shouldReduceMotion ? false : { opacity: 0, x: -8 }}
-      whileInView={{ opacity: 1, x: 0 }}
-      viewport={{ once: true, amount: 0.4 }}
-      transition={{ duration: 0.3, delay: index * 0.05, ease: "easeOut" }}
-      className="group border-b border-[#173e32]/8 last:border-0"
-    >
-      {/* Nomor */}
-      <td className="py-2.5 pr-3 font-serif text-sm text-[#b97a16] tabular-nums">
-        {index + 1}
-      </td>
-
-      {/* Nama */}
-      <td className="py-2.5 pr-4">
-        <span className="text-sm font-medium text-[#173e32]">
-          {row.name}
-          {isProvince ? "" : ""}
-        </span>
-      </td>
-
-      {/* Level tag */}
-      <td className="py-2.5 pr-4">
-        <span
-          className={`inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[10px] font-semibold ${cfg.bg} ${cfg.text}`}
-        >
-          <span className={`size-1.5 rounded-full ${cfg.dot}`} />
-          {cfg.label}
-        </span>
-      </td>
-
-      {/* Anomali FAPAR */}
-      <td className="py-2.5 pr-4 text-right">
-        <span className={`font-mono text-xs font-bold ${cfg.faparColor}`}>
-          {row.fapar}
-        </span>
-      </td>
-
-      {/* Indeks stres */}
-      <td className="py-2.5 pr-3">
-        <div className="flex items-center gap-2">
-          <div className="h-1 w-16 overflow-hidden rounded-none bg-[#e8ecdf]">
-            <motion.div
-              className={`h-full ${cfg.bar}`}
-              initial={{ width: 0 }}
-              whileInView={{ width: `${parseFloat(row.stressIndex) * 100}%` }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: index * 0.05 + 0.1, ease: "easeOut" }}
-            />
-          </div>
-          <span className={`w-8 text-right font-mono text-[11px] font-bold tabular-nums ${cfg.text}`}>
-            {row.stressIndex}
-          </span>
-        </div>
-      </td>
-
-      {/* Trend */}
-      <td className={`py-2.5 text-right text-xs font-semibold tabular-nums ${TREND_COLOR[row.trend]}`}>
-        {TREND_ARROW[row.trend]}
-      </td>
-    </motion.tr>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Geometry helpers (self-contained copy; extract to @/lib if used elsewhere)
-// ---------------------------------------------------------------------------
-
-function isPointInRing(point: [number, number], ring: [number, number][]): boolean {
-  const [x, y] = point;
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i];
-    const [xj, yj] = ring[j];
-    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
-
-function isPointInGeometry(
-  point: [number, number],
-  geometry: { type: string; coordinates: unknown }
-): boolean {
-  if (geometry.type === "Polygon") {
-    return isPointInRing(point, (geometry.coordinates as [number, number][][])[0]);
-  }
-  if (geometry.type === "MultiPolygon") {
-    for (const poly of geometry.coordinates as [number, number][][][]) {
-      if (isPointInRing(point, poly[0])) return true;
-    }
-  }
-  return false;
-}
-
-// ---------------------------------------------------------------------------
-// Main export
-// ---------------------------------------------------------------------------
-
-export function AgriStatusPanel() {
-  const [userProvince, setUserProvince] = useState<string | null>(null);
-  const [locationStatus, setLocationStatus] = useState<string>("unknown");
-
+  // Load real model data
   useEffect(() => {
-    const status = localStorage.getItem("mawas_location_status") ?? "unknown";
-    setLocationStatus(status);
-
-    const readProvince = async () => {
-      const lat = localStorage.getItem("mawas_user_lat");
-      const lng = localStorage.getItem("mawas_user_lng");
-      if (!lat || !lng || status !== "granted") return;
-      try {
-        const res = await fetch("/data/indonesia-prov.geojson");
-        const data = await res.json();
-        const point: [number, number] = [parseFloat(lng), parseFloat(lat)];
-        for (const feature of data.features) {
-          if (isPointInGeometry(point, feature.geometry)) {
-            setUserProvince(feature.properties?.name ?? null);
-            return;
-          }
+    let active = true;
+    risikoApi
+      .getAllRisiko()
+      .then((items) => {
+        if (active) {
+          setAllRisiko(items);
+          setIsLoading(false);
         }
-        let closest: string | null = null;
-        let minDist = Infinity;
-        for (const f of data.features) {
-          const center = f.properties?.center ?? [0, 0];
-          const d = (point[0] - center[0]) ** 2 + (point[1] - center[1]) ** 2;
-          if (d < minDist) { minDist = d; closest = f.properties?.name ?? null; }
-        }
-        setUserProvince(closest);
-      } catch { /* silent */ }
-    };
+      })
+      .catch((err) => {
+        console.error("Gagal memuat risiko kabupaten:", err);
+        if (active) setIsLoading(false);
+      });
 
-    readProvince();
-
-    const handler = () => {
-      const s = localStorage.getItem("mawas_location_status") ?? "unknown";
-      setLocationStatus(s);
-      if (s === "granted") readProvince();
-      else setUserProvince(null);
+    return () => {
+      active = false;
     };
-    window.addEventListener("mawas_location_updated", handler);
-    return () => window.removeEventListener("mawas_location_updated", handler);
   }, []);
 
-  const hasLocation = locationStatus === "granted" && userProvince;
+  // Sync province from geolocation if available
+  useEffect(() => {
+    const lat = localStorage.getItem("mawas_user_lat");
+    const lng = localStorage.getItem("mawas_user_lng");
+    const status = localStorage.getItem("mawas_location_status");
+    if (status === "granted" && lat && lng) {
+      // Find closest province or use standard default
+      fetch("/data/indonesia-prov.geojson")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!data?.features) return;
+          const userLat = parseFloat(lat);
+          const userLng = parseFloat(lng);
+          let closest = "Jawa Barat";
+          let minDist = Infinity;
+          for (const f of data.features) {
+            const center = f.properties?.center || [0, 0];
+            const dist = (userLng - center[0]) ** 2 + (userLat - center[1]) ** 2;
+            if (dist < minDist) {
+              minDist = dist;
+              closest = f.properties?.name;
+            }
+          }
+          setUserProvince(closest);
+        })
+        .catch(() => {});
+    }
+  }, []);
 
-  // Use Sumut demo data if province detected is in Sumatera Utara,
-  // otherwise always show Sumut as demo (representative data). [REAL DATA]
-  const rows = hasLocation ? SUMUT_KABUPATEN : PROVINCE_FALLBACK;
-  const isProvince = !hasLocation;
+  // Priority: URL query param > prop > geolocation > default "Jawa Barat"
+  const activeProvince = useMemo(() => {
+    const fromUrl = searchParams.get("prov");
+    if (fromUrl && fromUrl.trim()) return fromUrl.trim();
+    if (propProvince && propProvince.trim()) return propProvince.trim();
+    if (userProvince) return userProvince;
+    return "Jawa Barat";
+  }, [searchParams, propProvince, userProvince]);
 
-  const counts = {
-    rendah: rows.filter((r) => r.level === "rendah").length,
-    perlu_perhatian: rows.filter((r) => r.level === "perlu_perhatian").length,
-    tinggi: rows.filter((r) => r.level === "tinggi").length,
-  };
+  // Filter kabupaten by active province
+  const provinceKabupaten = useMemo(() => {
+    if (!allRisiko.length) return [];
+    return allRisiko.filter(
+      (item) => item.provinsi && matchProvince(activeProvince, item.provinsi)
+    );
+  }, [allRisiko, activeProvince]);
+
+  // If no kabupaten match (e.g. province name typo), fallback to first available
+  const displayedKabupaten = useMemo(() => {
+    if (provinceKabupaten.length > 0) return provinceKabupaten;
+    // Fallback: return top critical items from national dataset
+    return allRisiko.slice(0, 15);
+  }, [provinceKabupaten, allRisiko]);
+
+  // Statistics count
+  const summaryCounts = useMemo(() => {
+    const counts = {
+      tinggi: 0,
+      sedang: 0,
+      rendah: 0,
+      tidakTersedia: 0,
+    };
+    for (const item of displayedKabupaten) {
+      const kat = (item.kategori || "").toLowerCase();
+      if (kat === "tinggi") counts.tinggi += 1;
+      else if (kat === "sedang") counts.sedang += 1;
+      else if (kat === "rendah") counts.rendah += 1;
+      else counts.tidakTersedia += 1;
+    }
+    return counts;
+  }, [displayedKabupaten]);
 
   return (
     <section
+      id="status-wilayah"
       className="border-b border-[#173e32]/10 bg-[#fbfaf5] px-4 py-10 sm:px-6 sm:py-14 lg:px-10 xl:px-12 lg:py-16"
-      aria-label={hasLocation ? `Status kabupaten di ${userProvince}` : "Peringkat stres vegetasi provinsi"}
+      aria-label={`Rincian risiko kabupaten di ${activeProvince}`}
     >
       <div className="mx-auto w-full max-w-[1680px]">
-        {/* Header */}
+        {/* Header Section */}
         <Reveal>
-          <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#557267]">
-                {hasLocation ? "Rincian kabupaten" : "Peringkat provinsi"}
-              </p>
-              <h2 className="mt-1.5 font-serif text-xl tracking-[-0.03em] text-[#173e32] sm:text-2xl lg:text-3xl">
-                {hasLocation
-                  ? `Stres vegetasi per kabupaten di ${userProvince}`
-                  : "Indeks stres vegetasi seluruh provinsi"}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded bg-[#173e32]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#173e32]">
+                  DATA MODEL
+                </span>
+                <span className="inline-flex items-center gap-1 rounded bg-[#b97a16]/15 px-2.5 py-0.5 text-[11px] font-semibold text-[#8c570b]">
+                  <Clock size={12} />
+                  Kondisi per 11 Sep 2026 (Horizon 30 hari)
+                </span>
+              </div>
+              <h2 className="mt-2 font-serif text-2xl tracking-[-0.03em] text-[#173e32] sm:text-3xl lg:text-4xl">
+                Status Risiko Vegetasi: Wilayah {activeProvince}
               </h2>
+              <p className="mt-1 text-xs text-[#557267] sm:text-sm">
+                Menampilkan {displayedKabupaten.length} kabupaten/kota berdasarkan pemrosesan satelit anomali FAPAR & curah hujan BMKG.
+              </p>
             </div>
 
-            {/* Summary counts */}
-            <div className="flex flex-wrap items-center gap-3 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="size-2 rounded-sm bg-[#4caf7d]" />
-                <span className="text-[#1f5c3a] font-medium">{counts.rendah} Normal</span>
+            {/* Category summary counters - 3 Warna Standar Terang */}
+            <div className="flex flex-wrap items-center gap-2.5 text-xs">
+              <div className="flex items-center gap-1.5 rounded-md border border-[#ef4444]/30 bg-[#ef4444]/10 px-3 py-1.5 font-semibold text-[#991b1b]">
+                <span className="size-2 rounded-full bg-[#ef4444]" />
+                <span>{summaryCounts.tinggi} Merah (Kritis)</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="size-2 rounded-sm bg-[#d4a028]" />
-                <span className="text-[#8a6000] font-medium">{counts.perlu_perhatian} Perhatian</span>
+              <div className="flex items-center gap-1.5 rounded-md border border-[#eab308]/40 bg-[#eab308]/15 px-3 py-1.5 font-semibold text-[#854d0e]">
+                <span className="size-2 rounded-full bg-[#eab308]" />
+                <span>{summaryCounts.sedang} Kuning (Warning)</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="size-2 rounded-sm bg-[#c0392b]" />
-                <span className="text-[#7a1a1a] font-medium">{counts.tinggi} Risiko tinggi</span>
+              <div className="flex items-center gap-1.5 rounded-md border border-[#22c55e]/30 bg-[#22c55e]/10 px-3 py-1.5 font-semibold text-[#166534]">
+                <span className="size-2 rounded-full bg-[#22c55e]" />
+                <span>{summaryCounts.rendah + summaryCounts.tidakTersedia} Hijau (Normal)</span>
               </div>
-              <span className="ml-1 rounded-sm bg-[#173e32]/8 px-1.5 py-0.5 text-[#173e32] font-medium">
-                Ilustrasi
-              </span>
             </div>
           </div>
         </Reveal>
 
-        {/* Table */}
+        {/* Table of Kabupaten */}
         <Reveal>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] border-collapse">
-              <thead>
-                <tr className="border-b border-[#173e32]/15">
-                  <th className="pb-2 pr-3 text-left text-[10px] font-semibold uppercase tracking-wider text-[#557267]">
-                    #
-                  </th>
-                  <th className="pb-2 pr-4 text-left text-[10px] font-semibold uppercase tracking-wider text-[#557267]">
-                    {isProvince ? "Provinsi" : "Kabupaten / Kota"}
-                  </th>
-                  <th className="pb-2 pr-4 text-left text-[10px] font-semibold uppercase tracking-wider text-[#557267]">
-                    Status
-                  </th>
-                  <th className="pb-2 pr-4 text-right text-[10px] font-semibold uppercase tracking-wider text-[#557267]">
-                    Anomali FAPAR
-                  </th>
-                  <th className="pb-2 pr-3 text-left text-[10px] font-semibold uppercase tracking-wider text-[#557267]">
-                    Indeks stres (0–1)
-                  </th>
-                  <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-wider text-[#557267]">
-                    Tren
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, i) => (
-                  <TableRow key={row.name} row={row} index={i} isProvince={isProvince} />
-                ))}
-              </tbody>
-            </table>
+          <div className="overflow-x-auto rounded-xl border border-[#173e32]/12 bg-[#f5f1e8] shadow-sm">
+            {isLoading ? (
+              <div className="py-16 text-center text-sm text-[#173e32]/60">
+                Memuat data model risiko wilayah...
+              </div>
+            ) : (
+              <table className="w-full min-w-[700px] border-collapse text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#173e32]/15 bg-[#173e32]/5 text-[11px] font-semibold uppercase tracking-wider text-[#173e32]">
+                    <th className="py-3 pl-4 pr-2">#</th>
+                    <th className="py-3 pr-4">Kabupaten / Kota</th>
+                    <th className="py-3 pr-4">Tingkat Risiko</th>
+                    <th className="py-3 pr-4 text-center">Skor Risiko (0-100)</th>
+                    <th className="py-3 pr-4">Faktor Penyebab</th>
+                    <th className="py-3 pr-4 text-right">Data Cuaca BMKG</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#173e32]/8">
+                  {displayedKabupaten.map((item, index) => {
+                    const kat = (item.kategori || "data tidak tersedia").toLowerCase() as keyof typeof CATEGORY_CONFIG;
+                    const cfg = CATEGORY_CONFIG[kat] || CATEGORY_CONFIG["data tidak tersedia"];
+                    const rawFaktor = item.faktor_penyebab;
+                    const faktorText = Array.isArray(rawFaktor)
+                      ? rawFaktor.join(", ")
+                      : rawFaktor || (item.skor_risiko === null ? "Data satelit vegetasi pada periode ini terlalu sedikit (awan/tutupan)" : "Kondisi vegetasi normal");
+
+                    const hasWeather = item.punya_data_cuaca !== false;
+
+                    return (
+                      <motion.tr
+                        key={item.kode_kabupaten || item.id_fe || index}
+                        initial={shouldReduceMotion ? false : { opacity: 0, y: 4 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.2, delay: Math.min(index * 0.02, 0.4) }}
+                        className="transition-colors hover:bg-[#173e32]/5"
+                      >
+                        <td className="py-3 pl-4 pr-2 font-mono text-[11px] text-[#b97a16]">
+                          {index + 1}
+                        </td>
+                        <td className="py-3 pr-4 font-semibold text-[#173e32]">
+                          {item.nama_kabupaten}
+                          {item.provinsi && (
+                            <span className="ml-1.5 text-[10px] font-normal text-[#557267]">
+                              ({item.provinsi})
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 pr-4">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${cfg.badgeBg}`}
+                          >
+                            <span className={`size-1.5 rounded-full ${cfg.dot}`} />
+                            {cfg.label}
+                          </span>
+                        </td>
+                        <td className="py-3 pr-4 text-center">
+                          {item.skor_risiko !== null && item.skor_risiko !== undefined ? (
+                            <div className="inline-flex items-center gap-2">
+                              <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[#173e32]/10">
+                                <div
+                                  className={`h-full ${cfg.bar}`}
+                                  style={{ width: `${Math.min(Number(item.skor_risiko), 100)}%` }}
+                                />
+                              </div>
+                              <span className="font-mono text-xs font-bold text-[#173e32]">
+                                {Math.round(Number(item.skor_risiko))}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="italic text-[#64748b]">Data tidak tersedia</span>
+                          )}
+                        </td>
+                        <td className="max-w-xs py-3 pr-4 text-[#36564a]">
+                          <span className="line-clamp-2" title={faktorText}>
+                            {faktorText}
+                          </span>
+                        </td>
+                        <td className="py-3 pr-4 text-right">
+                          {hasWeather ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#2b5930]">
+                              <CheckCircle2 size={13} className="text-[#6d9670]" />
+                              Tercakup
+                            </span>
+                          ) : (
+                            <span
+                              className="inline-flex items-center gap-1 text-[11px] font-medium text-[#b97a16]"
+                              title="Belum memiliki stasiun CHIRPS BMKG (Pemekaran Papua 2022)"
+                            >
+                              <HelpCircle size={13} />
+                              Pemekaran 2022
+                            </span>
+                          )}
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </Reveal>
 
-        {/* Footer note + CTA if no location */}
-        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[10px] leading-4 text-[#8a9e8f]">
-            Data ilustrasi berdasarkan skenario uji. Nilai aktual tersedia saat sistem operasional. [REAL DATA]
+        {/* Footer info notice */}
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs text-[#557267]">
+          <p className="flex items-center gap-1.5">
+            <Info size={14} className="text-[#b97a16] shrink-0" />
+            <span>
+              Gunakan pencarian provinsi di atas header untuk berpindah wilayah secara seketika.
+            </span>
           </p>
-          {!hasLocation && (
-            <button
-              type="button"
-              onClick={() => {
-                navigator.geolocation.getCurrentPosition(
-                  (pos) => {
-                    localStorage.setItem("mawas_user_lat", String(pos.coords.latitude));
-                    localStorage.setItem("mawas_user_lng", String(pos.coords.longitude));
-                    localStorage.setItem("mawas_location_status", "granted");
-                    window.dispatchEvent(new Event("mawas_location_updated"));
-                  },
-                  () => {
-                    localStorage.setItem("mawas_location_status", "denied");
-                    window.dispatchEvent(new Event("mawas_location_updated"));
-                  }
-                );
-              }}
-              className="inline-flex shrink-0 items-center gap-1.5 self-start text-xs font-semibold text-[#173e32] underline underline-offset-4 hover:text-[#245542] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b97a16]"
-            >
-              <MapPin className="size-3.5" />
-              Lihat data kabupaten wilayah saya
-            </button>
-          )}
-          {hasLocation && (
-            <div className="flex items-center gap-1.5 text-xs text-[#557267]">
-              <MapPin className="size-3.5 text-[#173e32]" />
-              <span>{userProvince}</span>
-              <Globe className="ml-2 size-3.5" />
-              <span>34 Provinsi tercakup</span>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <MapPin size={14} className="text-[#173e32]" />
+            <span>Fokus Wilayah: <strong>{activeProvince}</strong></span>
+          </div>
         </div>
       </div>
     </section>

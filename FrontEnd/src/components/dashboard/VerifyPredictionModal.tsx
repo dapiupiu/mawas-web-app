@@ -1,257 +1,215 @@
-import { useState, useEffect } from "react";
-import { X, CheckCircle2, Edit3, AlertTriangle, Satellite, CloudRain, ShieldCheck } from "lucide-react";
-import type { PredictionItem } from "@/types/dashboard";
+import { useEffect, useState } from "react";
+import { CheckCircle2, CircleAlert, Clock, ShieldCheck, X } from "lucide-react";
+import type { PredictionItem, VerificationStatus } from "@/types/dashboard";
 
 interface VerifyPredictionModalProps {
   item: PredictionItem | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (updatedItem: PredictionItem) => void;
+  onSave: (item: PredictionItem) => void;
 }
 
-export function VerifyPredictionModal({
-  item,
-  isOpen,
-  onClose,
-  onSave,
-}: VerifyPredictionModalProps) {
-  const [mode, setMode] = useState<"validate" | "override">("validate");
-  const [overrideScore, setOverrideScore] = useState<string>("");
-  const [notes, setNotes] = useState<string>("");
-  const [errorMsg, setErrorMsg] = useState<string>("");
+export function VerifyPredictionModal({ item, isOpen, onClose, onSave }: VerifyPredictionModalProps) {
+  const [status, setStatus] = useState<VerificationStatus>("menunggu");
+  const [notes, setNotes] = useState("");
+  const [verifierName, setVerifierName] = useState("");
 
   useEffect(() => {
-    if (item) {
-      setMode(item.statusVerifikasi === "dikoreksi" ? "override" : "validate");
-      setOverrideScore(item.skorOverride ? String(item.skorOverride) : String(item.skorRisiko));
-      setNotes(item.catatanOperator ?? "");
-      setErrorMsg("");
-    }
+    if (!item) return;
+    setStatus(item.statusVerifikasi || "menunggu");
+    setNotes(item.catatanOperator ?? "");
+    setVerifierName(item.diverifikasiOleh ?? "Petugas Lapangan / PPL");
   }, [item]);
 
   useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
-    }
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => event.key === "Escape" && onClose();
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
   if (!isOpen || !item) return null;
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (mode === "override") {
-      const numScore = parseFloat(overrideScore);
-      if (isNaN(numScore) || numScore < 0 || numScore > 1) {
-        setErrorMsg("Skor koreksi harus berupa angka desimal antara 0.00 hingga 1.00.");
-        return;
-      }
-      if (!notes.trim()) {
-        setErrorMsg("Wajib menyertakan catatan pertimbangan lapangan saat mengoreksi skor.");
-        return;
-      }
-
-      const updatedCategory = numScore >= 0.65 ? "kritis" : numScore >= 0.4 ? "waspada" : "normal";
-
-      onSave({
-        ...(item as NonNullable<typeof item>),
-        statusVerifikasi: "dikoreksi",
-        skorOverride: numScore,
-        kategori: updatedCategory,
-        catatanOperator: notes.trim(),
-        diverifikasiOleh: "Operator Wilayah",
-        terakhirDiperbarui: new Date().toLocaleDateString("id-ID", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      } as import("@/types/dashboard").PredictionItem);
-    } else {
-      onSave({
-        ...(item as NonNullable<typeof item>),
-        statusVerifikasi: "tervalidasi",
-        skorOverride: undefined,
-        catatanOperator: notes.trim() || "Dikonfirmasi sesuai sinyal pemantauan satelit dan laporan penyuluh setempat.",
-        diverifikasiOleh: "Operator Wilayah",
-        terakhirDiperbarui: new Date().toLocaleDateString("id-ID", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      } as import("@/types/dashboard").PredictionItem);
-    }
-    onClose();
-  }
-
-  const isKritis = item.kategori === "kritis";
-  const isWaspada = item.kategori === "waspada";
+  const isCritical = item.kategori === "kritis";
+  const options: Array<{ value: VerificationStatus; label: string; detail: string; icon: typeof CheckCircle2 }> = [
+    { 
+      value: "terverifikasi", 
+      label: "Terverifikasi Lapangan", 
+      detail: "Kondisi fisik sawah, saluran air, atau kelayuan tanaman sesuai dengan indikasi satelit.",
+      icon: CheckCircle2 
+    },
+    { 
+      value: "perlu_cek", 
+      label: "Perlu Cek Lanjutan", 
+      detail: "Informasi lapangan belum lengkap atau terdapat sistem irigasi teknis mandiri yang aktif.",
+      icon: CircleAlert 
+    },
+    { 
+      value: "menunggu", 
+      label: "Menunggu Review", 
+      detail: "Belum dilakukan konfirmasi atau pengecekan langsung oleh petugas.",
+      icon: Clock 
+    },
+  ];
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modal-verify-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#173e32]/50 backdrop-blur-xs"
+    <div 
+      className="fixed inset-0 z-50 grid place-items-end sm:place-items-center bg-[#091b15]/65 p-0 sm:p-4 backdrop-blur-xs transition-opacity" 
+      role="presentation" 
+      onMouseDown={onClose}
     >
-      <div
-        className="w-full max-w-lg overflow-hidden rounded-2xl border border-[#173e32]/15 bg-white shadow-xl animate-in fade-in zoom-in-95 duration-150"
-        onClick={(e) => e.stopPropagation()}
+      <div 
+        role="dialog" 
+        aria-modal="true" 
+        aria-labelledby="verification-title" 
+        className="w-full max-w-lg rounded-t-2xl sm:rounded-xl border border-[#173e32]/20 bg-[#fbfaf6] shadow-2xl overflow-hidden" 
+        onMouseDown={(event) => event.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#173e32]/10 bg-[#fbfaf5] px-6 py-4">
+        {/* Modal Header */}
+        <div className="flex items-start justify-between gap-4 border-b border-[#173e32]/10 bg-white px-5 py-4 sm:px-6">
           <div>
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#557267]">
-              Verifikasi Prediksi AI (F04)
-            </span>
-            <h2 id="modal-verify-title" className="font-serif text-xl font-bold text-[#173e32]">
-              Kabupaten {item.namaKabupaten}
+            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#10b981]">
+              <ShieldCheck className="size-4" />
+              <span>Verifikasi Lapangan</span>
+            </div>
+            <h2 id="verification-title" className="mt-1 font-serif text-xl font-bold text-[#173e32]">
+              {item.namaKabupaten}
             </h2>
+            <p className="text-xs text-[#557267]">
+              {item.provinsi} (Kode {item.kodeKabupaten})
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid size-8 place-items-center rounded-lg border border-[#173e32]/10 text-[#557267] hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16]"
-            aria-label="Tutup jendela verifikasi"
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="grid size-11 place-items-center rounded-lg text-[#36564a] hover:bg-[#dce7d7] transition-colors focus-visible:outline-2 focus-visible:outline-[#10b981]" 
+            aria-label="Tutup form verifikasi"
           >
-            <X className="size-4" />
+            <X className="size-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Sinyal Satelit Telemetri */}
-          <div className="rounded-xl border border-[#173e32]/10 bg-[#f5f1e8]/60 p-3.5 text-xs">
-            <p className="font-semibold text-[#173e32] mb-2 flex items-center gap-1.5">
-              <Satellite className="size-3.5 text-[#173e32]" />
-              Data Sinyal Satelit Masukan Model ML
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-lg bg-white p-2.5 border border-[#173e32]/8">
-                <span className="text-[10px] text-[#557267] block">Skor AI Awal</span>
-                <span className={`font-mono font-bold text-sm ${isKritis ? "text-[#7c1d0f]" : isWaspada ? "text-[#5e4107]" : "text-[#166534]"}`}>
-                  {item.skorRisiko.toFixed(2)}
-                </span>
-              </div>
-              <div className="rounded-lg bg-white p-2.5 border border-[#173e32]/8">
-                <span className="text-[10px] text-[#557267] block">Anomali FAPAR</span>
-                <span className="font-mono font-bold text-sm text-[#36564a]">
-                  {item.faparAnomaly > 0 ? `+${item.faparAnomaly}` : item.faparAnomaly}
-                </span>
-              </div>
-              <div className="rounded-lg bg-white p-2.5 border border-[#173e32]/8">
-                <span className="text-[10px] text-[#557267] block flex items-center gap-1">
-                  <CloudRain className="size-3 text-[#557267]" /> Hujan 30h
-                </span>
-                <span className="font-mono font-bold text-sm text-[#36564a]">
-                  {item.curahHujanMm} mm
-                </span>
-              </div>
+        {/* Modal Body Form */}
+        <form 
+          className="space-y-4 p-5 sm:p-6" 
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSave({ 
+              ...item, 
+              statusVerifikasi: status, 
+              catatanOperator: notes.trim() || undefined,
+              diverifikasiOleh: verifierName.trim() || undefined,
+              terakhirDiperbarui: new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date()) 
+            });
+            onClose();
+          }}
+        >
+          {/* Read-Only Model Score Banner */}
+          <div className="rounded-xl border border-[#173e32]/12 bg-[#f1f6ef] p-4 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-[#557267]">Skor Prediksi Model Satelit (Read-Only)</span>
+              <span className="font-mono text-[10px] text-[#10b981] font-bold uppercase tracking-wide">FAPAR Telemetri</span>
             </div>
-          </div>
-
-          {/* Mode Switcher */}
-          <div>
-            <label className="block text-xs font-semibold text-[#173e32] mb-1.5">
-              Pilihan Aksi Operator
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setMode("validate")}
-                className={`flex items-center justify-center gap-2 rounded-xl border p-2.5 text-xs font-semibold transition-all focus-visible:outline-2 focus-visible:outline-[#b97a16] ${
-                  mode === "validate"
-                    ? "border-[#166534] bg-[#166534]/10 text-[#166534]"
-                    : "border-[#173e32]/15 bg-white text-[#557267] hover:bg-[#f5f1e8]"
-                }`}
-              >
-                <CheckCircle2 className="size-4" />
-                Validasi Model
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("override")}
-                className={`flex items-center justify-center gap-2 rounded-xl border p-2.5 text-xs font-semibold transition-all focus-visible:outline-2 focus-visible:outline-[#b97a16] ${
-                  mode === "override"
-                    ? "border-[#966a13] bg-[#966a13]/10 text-[#5e4107]"
-                    : "border-[#173e32]/15 bg-white text-[#557267] hover:bg-[#f5f1e8]"
-                }`}
-              >
-                <Edit3 className="size-4" />
-                Koreksi Lapangan
-              </button>
-            </div>
-          </div>
-
-          {/* Conditional Input for Override */}
-          {mode === "override" && (
-            <div className="space-y-3 rounded-xl border border-[#966a13]/30 bg-[#966a13]/5 p-3.5">
-              <div className="flex items-center gap-2 text-xs font-semibold text-[#5e4107]">
-                <AlertTriangle className="size-4 text-[#966a13]" />
-                <span>Koreksi Skor Risiko Lapangan</span>
-              </div>
-              <p className="text-[11px] text-[#5e4107]/90 leading-relaxed">
-                Gunakan jika kondisi riil berbeda dengan pembacaan satelit (misal: jaringan irigasi sekunder baru dibuka atau sebaliknya terjadi gagal pasok air).
+            <div className="mt-2 flex items-baseline justify-between">
+              <p className={`font-mono text-3xl font-bold ${isCritical ? "text-[#991b1b]" : "text-[#173e32]"}`}>
+                {item.skorRisiko !== null ? item.skorRisiko.toFixed(2) : "Data Kosong"}
               </p>
-              <div>
-                <label htmlFor="override-score-input" className="block text-xs font-semibold text-[#173e32] mb-1">
-                  Skor Risiko Baru (0.00 sampai 1.00)
-                </label>
-                <input
-                  id="override-score-input"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                  value={overrideScore}
-                  onChange={(e) => setOverrideScore(e.target.value)}
-                  className="w-full rounded-lg border border-[#173e32]/20 bg-white px-3 py-2 text-xs text-[#173e32] focus:border-[#173e32] focus:outline-none focus:ring-1 focus:ring-[#173e32]"
-                  placeholder="Contoh: 0.45"
-                  required
-                />
-              </div>
+              <span className={`rounded-md border px-2 py-0.5 text-xs font-bold ${
+                isCritical 
+                  ? "bg-[#991b1b]/10 text-[#991b1b] border-[#991b1b]/30" 
+                  : item.kategori === "waspada" 
+                    ? "bg-[#b45309]/10 text-[#b45309] border-[#b45309]/30" 
+                    : "bg-[#166534]/10 text-[#166534] border-[#166534]/30"
+              }`}>
+                {item.kategori === "kritis" ? "Risiko Tinggi" : item.kategori === "waspada" ? "Perlu Perhatian" : "Normal"}
+              </span>
             </div>
-          )}
+            <p className="mt-2 text-[11px] leading-4 text-[#557267]">
+              Skor dihasilkan otomatis oleh algoritma deviasi vegetasi satelit dan tidak dapat diubah oleh operator demi integritas model.
+            </p>
+          </div>
 
-          {/* Catatan Operator */}
+          {/* Status Selection */}
+          <fieldset>
+            <legend className="text-xs font-bold text-[#173e32]">Status Konfirmasi Lapangan</legend>
+            <div className="mt-2 grid gap-2">
+              {options.map((option) => {
+                const selected = status === option.value;
+                const Icon = option.icon;
+
+                return (
+                  <button 
+                    key={option.value} 
+                    type="button" 
+                    onClick={() => setStatus(option.value)} 
+                    className={`min-h-12 rounded-xl border p-3 text-left transition-all focus-visible:outline-2 focus-visible:outline-[#10b981] ${
+                      selected 
+                        ? option.value === "terverifikasi" 
+                          ? "border-[#166534] bg-[#166534]/10 text-[#14532d] shadow-xs" 
+                          : option.value === "perlu_cek"
+                            ? "border-[#b45309] bg-[#b45309]/10 text-[#78350f] shadow-xs"
+                            : "border-[#173e32] bg-[#173e32]/10 text-[#173e32] shadow-xs"
+                        : "border-[#173e32]/15 bg-white text-[#36564a] hover:bg-[#f5f1e8]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 text-xs font-bold">
+                      <Icon className="size-4 shrink-0" />
+                      <span>{option.label}</span>
+                    </div>
+                    <p className="mt-1 pl-6 text-[11px] leading-4 text-[#557267]">
+                      {option.detail}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          {/* Catatan Lapangan */}
           <div>
-            <label htmlFor="notes-textarea" className="block text-xs font-semibold text-[#173e32] mb-1">
-              Catatan Justifikasi Lapangan
+            <label htmlFor="field-notes" className="text-xs font-bold text-[#173e32]">
+              Catatan Pengamatan Lapangan
             </label>
-            <textarea
-              id="notes-textarea"
-              rows={3}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Tuliskan keterangan pendukung atau referensi laporan mantri tani setempat..."
-              className="w-full rounded-lg border border-[#173e32]/20 bg-white p-3 text-xs text-[#173e32] focus:border-[#173e32] focus:outline-none focus:ring-1 focus:ring-[#173e32]"
+            <textarea 
+              id="field-notes" 
+              rows={3} 
+              value={notes} 
+              onChange={(event) => setNotes(event.target.value)} 
+              placeholder="Contoh: Petak sawah di hilir mengalami penurunan debit saluran sekunder. Petani mulai mengoperasikan pompa air cadangan." 
+              className="mt-1.5 w-full rounded-lg border border-[#173e32]/20 bg-white p-3 text-xs sm:text-sm text-[#173e32] placeholder:text-[#557267] focus-visible:outline-2 focus-visible:outline-[#10b981]" 
             />
           </div>
 
-          {errorMsg && (
-            <p className="text-xs font-semibold text-[#7c1d0f]">{errorMsg}</p>
-          )}
+          {/* Nama Petugas Verifikator */}
+          <div>
+            <label htmlFor="verifier-name" className="text-xs font-bold text-[#173e32]">
+              Petugas / Instansi Pelapor
+            </label>
+            <input
+              id="verifier-name"
+              type="text"
+              value={verifierName}
+              onChange={(e) => setVerifierName(e.target.value)}
+              placeholder="Contoh: Mantri Tani / PPL Kec. Panai"
+              className="mt-1.5 min-h-11 w-full rounded-lg border border-[#173e32]/20 bg-white px-3 text-xs sm:text-sm text-[#173e32] placeholder:text-[#557267] focus-visible:outline-2 focus-visible:outline-[#10b981]"
+            />
+          </div>
 
-          {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#173e32]/10">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-[#173e32]/15 px-4 py-2 text-xs font-semibold text-[#36564a] hover:bg-[#dce7d7] transition-colors focus-visible:outline-2 focus-visible:outline-[#b97a16]"
+          {/* Actions */}
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t border-[#173e32]/10 pt-4">
+            <button 
+              type="button" 
+              onClick={onClose} 
+              className="min-h-11 rounded-lg px-4 text-xs font-semibold text-[#36564a] hover:bg-[#dce7d7] transition-colors focus-visible:outline-2 focus-visible:outline-[#10b981]"
             >
               Batal
             </button>
-            <button
-              type="submit"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#173e32] px-4 py-2 text-xs font-semibold text-[#f5f1e8] hover:bg-[#245542] transition-colors focus-visible:outline-2 focus-visible:outline-[#b97a16]"
+            <button 
+              type="submit" 
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#173e32] px-5 text-xs font-bold text-[#f5f1e8] hover:bg-[#245542] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#10b981]"
             >
-              <ShieldCheck className="size-3.5" />
-              Simpan Verifikasi
+              <ShieldCheck className="size-4" />
+              <span>Simpan Catatan Verifikasi</span>
             </button>
           </div>
         </form>

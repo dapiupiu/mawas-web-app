@@ -1,49 +1,46 @@
 export type DashboardTab = 
   | "ringkasan" 
   | "verifikasi" 
-  | "produksi" 
-  | "intervensi" 
-  | "peta";
+  | "laporan"
+  | "artikel"
+  | "unggah"
+  | "pengguna";
 
-export type RiskLevel = "kritis" | "waspada" | "normal";
+export type RiskLevel = "kritis" | "waspada" | "normal" | "tidak_tersedia";
+
+export type VerificationStatus = "menunggu" | "terverifikasi" | "perlu_cek";
+
+export type UserRole = "admin" | "operator" | "pembuat_kebijakan";
+
+export interface ManagedUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  status: "aktif" | "nonaktif";
+  registeredAt: string;
+  temporaryPassword?: string;
+}
 
 export interface PredictionItem {
   id: string;
   kodeKabupaten: string;
   namaKabupaten: string;
   provinsi: string;
-  skorRisiko: number; // 0.00 - 1.00
+  skorRisiko: number | null; // Skor model asli (0.00 - 1.00) atau null jika data tidak tersedia. Read-only.
   kategori: RiskLevel;
-  faparAnomaly: number; // e.g. -0.22
-  curahHujanMm: number; // e.g. 45
-  statusVerifikasi: "menunggu" | "tervalidasi" | "dikoreksi";
+  faktorPenyebab?: string;
+  statusVerifikasi: VerificationStatus;
   catatanOperator?: string;
-  skorOverride?: number;
   diverifikasiOleh?: string;
   terakhirDiperbarui: string;
 }
 
-export interface ProductionRecord {
+export interface KnowledgeArticle {
   id: string;
-  kodeKabupaten: string;
-  namaKabupaten: string;
-  komoditas: "Padi Sawah" | "Padi Gogo" | "Jagung" | "Kedelai";
-  luasLahanHa: number;
-  estimasiPanenTon: number;
-  kondisiAir: "Cukup" | "Menipis" | "Defisit Kritis";
-  tanggalLapor: string;
-  petugasPelapor: string;
-}
-
-export interface InterventionItem {
-  id: string;
-  namaProgram: string;
-  jenis: "Pompanisasi" | "Sumur Bor" | "Distribusi Benih Tahan Kering" | "Normalisasi Saluran Irigasi";
-  kabupatenSasaran: string;
-  targetUnitAtauHa: string;
-  anggaranEst: string;
-  status: "Direncanakan" | "Sedang Berjalan" | "Selesai";
-  penanggungJawab: string;
-  tanggalMulai: string;
-  catatan?: string;
+  judul: string;
+  isi: string;
+  kategori: string;
+  thumbnailUrl?: string;
+  diperbaruiPada: string;
 }

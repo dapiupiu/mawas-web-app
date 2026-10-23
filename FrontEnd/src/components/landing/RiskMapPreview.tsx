@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Globe, MapPin, Wheat } from "lucide-react";
 import { geometryToSvgPath, projectMercator } from "@/lib/geoProjection";
 import type { IndonesiaGeoJson, ProvinceFeature } from "@/types/map";
+import { matchProvince } from "@/lib/provinces";
 
 function isPointInRing(
   point: [number, number],
@@ -54,10 +56,18 @@ function findUserProvince(
 }
 
 export function RiskMapPreview() {
+  const [searchParams] = useSearchParams();
+  const urlProv = searchParams.get("prov");
   const [geoData, setGeoData] = useState<IndonesiaGeoJson | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isZoomedIn, setIsZoomedIn] = useState(true);
   const shouldReduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (urlProv) {
+      setIsZoomedIn(true);
+    }
+  }, [urlProv]);
 
   // Koordinat pengguna dari localStorage
   const [userCoords, setUserCoords] = useState<{
@@ -128,11 +138,16 @@ export function RiskMapPreview() {
     };
   }, []);
 
-  // Deteksi provinsi aktif pengguna
+  // Deteksi provinsi aktif pengguna (prioritas: URL search param > geolocation)
   const activeProvince = useMemo(() => {
-    if (!geoData || !userCoords) return null;
+    if (!geoData) return null;
+    if (urlProv && urlProv.trim()) {
+      const found = geoData.features.find((f) => matchProvince(urlProv, f.properties.name));
+      if (found) return found;
+    }
+    if (!userCoords) return null;
     return findUserProvince(userCoords.lng, userCoords.lat, geoData.features);
-  }, [geoData, userCoords]);
+  }, [geoData, userCoords, urlProv]);
 
   // Pra-komputasi SVG path
   const provincePaths = useMemo(() => {
@@ -238,15 +253,15 @@ export function RiskMapPreview() {
                     />
                   );
                 }
-                // Wilayah lain: Gray netral lembut
+                // Wilayah lain: Sage netral lembut
                 return (
                   <path
                     key={item.id}
                     d={item.path}
-                    fill="#cbd5e1"
-                    stroke="#e2e8f0"
+                    fill="#dce5d9"
+                    stroke="#c8d6c4"
                     strokeWidth="0.8"
-                    opacity="0.8"
+                    opacity="0.85"
                     vectorEffect="non-scaling-stroke"
                   />
                 );
