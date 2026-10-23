@@ -18,9 +18,13 @@ app.use(express.json());
 const authRoutes = require('./routes/authRoutes');
 app.use('/api/auth', authRoutes);
 
-// 2. Route Risiko Wilayah (Baru)
+// 2. Route Risiko Wilayah
 const risikoRoutes = require('./routes/risikoRoutes');
 app.use('/api/risiko', risikoRoutes);
+
+// 3. Route User Management (Khusus SuperAdmin)
+const userRoutes = require('./routes/userRoutes');
+app.use('/api/users', userRoutes);
 
 app.get('/', (req, res) => {
     res.json({ message: "Server mawas berjalan lancar!" });

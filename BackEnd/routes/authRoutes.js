@@ -4,32 +4,36 @@ const authController = require('../controllers/authController');
 const { authenticateToken, authorizeRoles } = require('../middlewares/authMiddleware');
 
 // Endpoint Auth Publik (Tanpa Token)
-router.post('/register', authController.register);
 router.post('/login', authController.login);
+router.post('/register', authController.register); // Dinonaktifkan via controller
 router.get('/google', authController.googleLogin); // Route Google OAuth
 
-// Endpoint Terproteksi (Contoh pengujian RBAC)
+// Endpoint Edit Profil & Ganti Password (Khusus User Terautentikasi)
+router.put('/profile', authenticateToken, authController.updateProfile);
+router.put('/change-password', authenticateToken, authController.changePassword);
 
-// 1. Khusus Operator & Admin (Input Data Stok)
-router.post('/stok-pangan', authenticateToken, authorizeRoles('operator', 'admin'), (req, res) => {
+// Endpoint Terproteksi (Pengujian RBAC)
+
+// 1. Khusus Operator & SuperAdmin (Input Data Stok)
+router.post('/stok-pangan', authenticateToken, authorizeRoles('operator', 'superadmin'), (req, res) => {
     res.json({ 
-        message: "Akses diberikan! Kamu berhasil mengakses endpoint khusus Operator/Admin.",
+        message: "Akses diberikan! Kamu berhasil mengakses endpoint khusus Operator/SuperAdmin.",
         user: req.user
     });
 });
 
-// 2. Khusus Operator & Admin (Dashboard Operator - Ringkasan Tugas & Input)
-router.get('/operator-dashboard', authenticateToken, authorizeRoles('operator', 'admin'), (req, res) => {
+// 2. Khusus Operator & SuperAdmin (Dashboard Operator - Ringkasan Tugas & Input)
+router.get('/operator-dashboard', authenticateToken, authorizeRoles('operator', 'superadmin'), (req, res) => {
     res.json({ 
         message: "Selamat datang di Dashboard Operator! Kamu memiliki akses untuk menginput & memverifikasi data.",
         user: req.user
     });
 });
 
-// 3. Khusus Admin (Dashboard Admin - Kelola Pengguna & Sistem)
-router.get('/admin-dashboard', authenticateToken, authorizeRoles('admin'), (req, res) => {
+// 3. Khusus SuperAdmin (Dashboard SuperAdmin - Kelola Pengguna & Sistem)
+router.get('/admin-dashboard', authenticateToken, authorizeRoles('superadmin'), (req, res) => {
     res.json({ 
-        message: "Selamat datang di Dashboard Admin! Kamu memiliki hak akses penuh sebagai Admin.",
+        message: "Selamat datang di Dashboard SuperAdmin! Kamu memiliki hak akses penuh sebagai SuperAdmin.",
         user: req.user
     });
 });
