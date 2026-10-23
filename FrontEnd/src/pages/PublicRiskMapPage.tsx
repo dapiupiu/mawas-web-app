@@ -1,8 +1,12 @@
 import {
   AlertCircle,
   ArrowLeft,
-  CloudRain,
+  Calendar,
+  CheckCircle2,
+  ChevronLeft,
   ChevronRight,
+  CloudRain,
+  HelpCircle,
   Info,
   Leaf,
   Layers,
@@ -26,10 +30,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/map/SearchableSelect";
+import { risikoApi, type RisikoItem, type AnalisisAIResponse } from "@/lib/api";
+import { matchProvince } from "@/lib/provinces";
 import type {
   IndonesiaGeoJson,
   KabupatenFeature,
@@ -41,6 +47,7 @@ import { geometryToSvgPath, projectMercator } from "@/lib/geoProjection";
 type Point = { x: number; y: number };
 type Gesture = { distance: number; midpoint: Point; zoom: number; pan: Point };
 type MapGranularity = "provinsi" | "kabupaten";
+type Coordinates = { lat: number; lng: number };
 
 type KabupatenListItem = {
   id: string;
@@ -74,12 +81,47 @@ export function PublicRiskMapPage() {
   const [selectedKabupatenName, setSelectedKabupatenName] = useState<
     string | null
   >(null);
+  const [userCoords, setUserCoords] = useState<Coordinates | null>(() => {
+    const status = localStorage.getItem("mawas_location_status");
+    const latValue = localStorage.getItem("mawas_user_lat");
+    const lngValue = localStorage.getItem("mawas_user_lng");
+    const lat = latValue ? Number(latValue) : Number.NaN;
+    const lng = lngValue ? Number(lngValue) : Number.NaN;
+
+    return status === "granted" && Number.isFinite(lat) && Number.isFinite(lng)
+      ? { lat, lng }
+      : null;
+  });
 
   // Search filter query
   const [searchState, setSearchState] = useState("Pilih wilayah pada peta.");
 
   // Mobile drawer toggle
   const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
+
+  // Model & AI state
+  const [searchParams] = useSearchParams();
+  const [riskItems, setRiskItems] = useState<RisikoItem[]>([]);
+  const [selectedDate, setSelectedDate] = useState("2026-09-11");
+  const [aiAnalysis, setAiAnalysis] = useState<AnalisisAIResponse | null>(null);
+  const [isLoadingAI, setIsLoadingAI] = useState(false);
+
+  // Stepper function to advance or rewind date by days
+  const changeDate = (days: number) => {
+    try {
+      const parts = selectedDate.split("-").map(Number);
+      if (parts.length === 3) {
+        const d = new Date(parts[0], parts[1] - 1, parts[2]);
+        d.setDate(d.getDate() + days);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        setSelectedDate(`${yyyy}-${mm}-${dd}`);
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   // Gesture and view transforms
   const [zoom, setZoom] = useState(1);
@@ -121,10 +163,137 @@ export function PublicRiskMapPage() {
         // Fallback silently if list fails
       });
 
+    // Load real ML model risk items
+    risikoApi
+      .getAllRisiko()
+      .then((items) => {
+        if (!ignore) setRiskItems(items);
+      })
+      .catch((err) => {
+        console.warn("Gagal memuat risiko:", err);
+      });
+
     return () => {
       ignore = true;
     };
   }, []);
+
+  useEffect(() => {
+    const handleLocationUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<
+        Coordinates & { status?: string }
+      >).detail;
+
+      if (
+        detail?.status === "granted" &&
+        Number.isFinite(detail.lat) &&
+        Number.isFinite(detail.lng)
+      ) {
+        setUserCoords({ lat: detail.lat, lng: detail.lng });
+        return;
+      }
+
+      setUserCoords(null);
+    };
+
+    window.addEventListener("mawas_location_updated", handleLocationUpdate);
+    return () =>
+      window.removeEventListener(
+        "mawas_location_updated",
+        handleLocationUpdate,
+      );
+  }, []);
+
+  // Map lookup by id_fe and kode
+  const riskByFeId = useMemo(() => {
+    const map = new Map<string, RisikoItem>();
+    for (const item of riskItems) {
+      if (item.id_fe) map.set(item.id_fe, item);
+      if (item.kode_kabupaten) map.set(item.kode_kabupaten, item);
+      if (item.nama_kabupaten) {
+        map.set(item.nama_kabupaten.toLowerCase(), item);
+        const clean = item.nama_kabupaten
+          .toLowerCase()
+          .replace(/^(kabupaten|kota)\s+/, "");
+        map.set(clean, item);
+      }
+    }
+    return map;
+  }, [riskItems]);
+
+  const getKabupatenRisk = (feature: KabupatenFeature): RisikoItem | null => {
+    const p = feature.properties;
+    if (!p) return null;
+    return (
+      riskByFeId.get(p.id) ||
+      riskByFeId.get(p.kab_name.toLowerCase()) ||
+      riskByFeId.get(
+        p.kab_name.toLowerCase().replace(/^(kabupaten|kota)\s+/, ""),
+      ) ||
+      null
+    );
+  };
+
+  const getRiskColor = (risk: RisikoItem | null): string => {
+    const kat = (risk?.kategori || "").toLowerCase();
+    if (kat === "tinggi" || kat === "kritis") {
+      return "#ef4444"; // Merah Terang (Kritis)
+    }
+    if (kat === "sedang" || kat === "warning") {
+      return "#eab308"; // Kuning Terang (Warning)
+    }
+    // Semua status normal, rendah, maupun default = Hijau Terang Normal
+    return "#22c55e"; // Hijau Terang (Normal)
+  };
+
+  // Aggregated risk per province for national overview
+  const getProvinceRisk = (provName: string) => {
+    const items = riskItems.filter(
+      (item) => item.provinsi && matchProvince(provName, item.provinsi),
+    );
+    if (!items.length) {
+      return {
+        color: "#22c55e",
+        status: "Normal",
+        total: 0,
+        tinggi: 0,
+        sedang: 0,
+        rendah: 0,
+      };
+    }
+    const tinggi = items.filter(
+      (k) => (k.kategori || "").toLowerCase() === "tinggi",
+    ).length;
+    const sedang = items.filter(
+      (k) => (k.kategori || "").toLowerCase() === "sedang",
+    ).length;
+    const rendah = items.filter(
+      (k) => (k.kategori || "").toLowerCase() === "rendah",
+    ).length;
+    const kosong = items.filter(
+      (k) =>
+        k.skor_risiko === null ||
+        (k.kategori || "").toLowerCase() === "data tidak tersedia",
+    ).length;
+
+    let color = "#22c55e";
+    let status = "Normal";
+    if (tinggi > 0) {
+      color = "#ef4444"; // Merah Terang (Kritis)
+      status = "Kritis";
+    } else if (sedang > 0) {
+      color = "#eab308"; // Kuning Terang (Warning)
+      status = "Warning";
+    }
+    return {
+      color,
+      status,
+      tinggi,
+      sedang,
+      rendah: rendah + kosong,
+      total: items.length,
+    };
+  };
 
   // Projected province SVG paths
   const projectedProvinces = useMemo(() => {
@@ -145,6 +314,11 @@ export function PublicRiskMapPage() {
       centerSvg: projectMercator(feature.properties.center),
     }));
   }, [activeKabData]);
+
+  const userMarkerPoint = useMemo(() => {
+    if (!userCoords) return null;
+    return projectMercator([userCoords.lng, userCoords.lat]);
+  }, [userCoords]);
 
   // Province dropdown options
   const provinceOptions = useMemo(() => {
@@ -323,6 +497,43 @@ export function PublicRiskMapPage() {
     setSearchState(`Data ${feature.properties.kab_name}.`);
   }, [activeKabData, selectedKabupatenName]);
 
+  // Auto-select province if passed in URL query param (?prov=...)
+  useEffect(() => {
+    const provParam = searchParams.get("prov");
+    if (provParam && geoData?.features && !selectedProvinceName) {
+      const match = geoData.features.find((f) =>
+        matchProvince(provParam, f.properties.name),
+      );
+      if (match) {
+        selectProvince(match.properties.name, true);
+      }
+    }
+  }, [searchParams, geoData, selectedProvinceName]);
+
+  // Fetch Generative AI analysis when a kabupaten is selected
+  useEffect(() => {
+    if (!selectedKabupatenFeature) {
+      setAiAnalysis(null);
+      return;
+    }
+    const risk = getKabupatenRisk(selectedKabupatenFeature);
+    setIsLoadingAI(true);
+    const id =
+      risk?.kode_kabupaten ||
+      selectedKabupatenFeature.properties.id ||
+      selectedKabupatenFeature.properties.kab_name;
+
+    risikoApi
+      .getAnalisisAI(id, risk || undefined)
+      .then((res) => {
+        setAiAnalysis(res);
+        setIsLoadingAI(false);
+      })
+      .catch(() => {
+        setIsLoadingAI(false);
+      });
+  }, [selectedKabupatenFeature, riskByFeId]);
+
   // Form submit
   const handleFilterSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -379,8 +590,16 @@ export function PublicRiskMapPage() {
         return;
       }
       setPan({
-        x: clamp(previous.pan.x + event.clientX - previous.midpoint.x, -2600, 2600),
-        y: clamp(previous.pan.y + event.clientY - previous.midpoint.y, -1800, 1800),
+        x: clamp(
+          previous.pan.x + event.clientX - previous.midpoint.x,
+          -2600,
+          2600,
+        ),
+        y: clamp(
+          previous.pan.y + event.clientY - previous.midpoint.y,
+          -1800,
+          1800,
+        ),
       });
       return;
     }
@@ -441,12 +660,6 @@ export function PublicRiskMapPage() {
 
   return (
     <main className="relative h-dvh w-screen overflow-hidden bg-[#e8ecdf] text-[#173e32]">
-      {/* Background terrain grain */}
-      <div
-        className="absolute inset-0 map-grain pointer-events-none"
-        aria-hidden="true"
-      />
-
       {/* Top navigation and breadcrumbs bar */}
       <header className="absolute left-4 top-4 z-30 flex flex-wrap items-center gap-2">
         <Link
@@ -454,7 +667,8 @@ export function PublicRiskMapPage() {
           className="group inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#173e32] bg-[#173e32] px-3.5 text-sm font-semibold text-[#f5f1e8] shadow-[0_8px_20px_rgba(23,62,50,0.2)] transition-colors hover:bg-[#245542] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b97a16]"
         >
           <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" />
-          Kembali ke Mawas
+          <img src="/logo-mawas/VEKTOR/icon/MAWAS-icon-cream.svg" alt="" className="size-4.5 object-contain" />
+          <span>Kembali ke Mawas</span>
         </Link>
 
         {/* Granularity mode switcher tabs */}
@@ -494,6 +708,43 @@ export function PublicRiskMapPage() {
           >
             <Layers className="size-3.5" />
             Tingkat Kabupaten
+          </button>
+        </div>
+
+        {/* Date Selector with Next / Prev buttons matching height */}
+        <div className="inline-flex items-center rounded-md border border-[#173e32]/15 bg-[#f5f1e8]/95 p-1 shadow-sm backdrop-blur">
+          <button
+            type="button"
+            onClick={() => changeDate(-1)}
+            className="inline-flex min-h-9 size-9 items-center justify-center rounded text-[#36564a] hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16] transition-colors"
+            aria-label="Tanggal sebelumnya"
+            title="Maju 1 hari sebelumnya"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+          <div className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-semibold text-[#173e32]">
+            <Calendar className="size-3.5 text-[#b97a16]" />
+            <span className="hidden sm:inline text-[11px] text-[#557267]">
+              Tanggal:
+            </span>
+            <input
+              type="date"
+              value={selectedDate}
+              min="2026-08-01"
+              max="2026-09-30"
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="bg-transparent text-xs font-bold text-[#173e32] cursor-pointer focus:outline-none"
+              title="Pilih tanggal rujukan model"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => changeDate(1)}
+            className="inline-flex min-h-9 size-9 items-center justify-center rounded text-[#36564a] hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16] transition-colors"
+            aria-label="Tanggal berikutnya"
+            title="Maju 1 hari berikutnya"
+          >
+            <ChevronRight className="size-4" />
           </button>
         </div>
 
@@ -613,30 +864,6 @@ export function PublicRiskMapPage() {
                   : "Peta wilayah Indonesia. Gunakan kontrol zoom atau geser untuk menjelajah."
               }
             >
-              {/* Equator guide line */}
-              <g opacity="0.32">
-                <line
-                  x1="10"
-                  y1="190"
-                  x2="990"
-                  y2="190"
-                  stroke="#173e32"
-                  strokeWidth="0.8"
-                  strokeDasharray="4 8"
-                />
-                <text
-                  x="24"
-                  y="184"
-                  fill="#173e32"
-                  fontSize="9"
-                  fontFamily="Geist Variable, sans-serif"
-                  fontWeight="600"
-                  letterSpacing="0.08em"
-                >
-                  GARIS KHATULISTIWA (0°)
-                </text>
-              </g>
-
               {/* Major island region labels */}
               <g
                 fill="#173e32"
@@ -676,20 +903,21 @@ export function PublicRiskMapPage() {
                   {projectedProvinces.map(({ feature, path }) => {
                     const props = feature.properties;
                     const isSelected = selectedProvinceName === props.name;
+                    const provRisk = getProvinceRisk(props.name);
                     return (
                       <path
                         key={props.id}
                         d={path}
-                        fill={props.sampleRisk.color}
-                        stroke={isSelected ? "#b97a16" : "#f5f1e8"}
+                        fill={provRisk.color}
+                        stroke={isSelected ? "#173e32" : "#ffffff"}
                         strokeWidth={isSelected ? 3 : 1}
                         strokeLinejoin="round"
-                        opacity={isSelected ? 1 : 0.84}
+                        opacity={isSelected ? 1 : 0.94}
                         className="cursor-pointer transition-[opacity,stroke,stroke-width] duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#b97a16]"
                         role="button"
                         tabIndex={0}
                         aria-pressed={isSelected}
-                        aria-label={`Provinsi ${props.name}. Risiko ${props.sampleRisk.status}.`}
+                        aria-label={`Provinsi ${props.name}. Status: ${provRisk.status} (${provRisk.tinggi} tinggi, ${provRisk.sedang} sedang, ${provRisk.rendah} rendah).`}
                         onClick={() => selectProvince(props.name, false)}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" || event.key === " ") {
@@ -717,7 +945,7 @@ export function PublicRiskMapPage() {
                         <path
                           key={`bg-${feature.properties.id}`}
                           d={path}
-                          fill="#c8d6c4"
+                          fill="#dce5d9"
                           stroke="#f5f1e8"
                           strokeWidth="0.8"
                         />
@@ -733,20 +961,28 @@ export function PublicRiskMapPage() {
                       const props = feature.properties;
                       const isSelected =
                         selectedKabupatenName === props.kab_name;
+                      const risk = getKabupatenRisk(feature);
+                      const color = getRiskColor(risk);
+                      const kat = risk?.kategori || "Data tidak tersedia";
+                      const skor =
+                        risk?.skor_risiko !== null &&
+                        risk?.skor_risiko !== undefined
+                          ? Math.round(Number(risk.skor_risiko))
+                          : "Tidak tersedia";
                       return (
                         <path
                           key={props.id}
                           d={path}
-                          fill={props.sampleRisk.color}
-                          stroke={isSelected ? "#b97a16" : "#f5f1e8"}
-                          strokeWidth={isSelected ? 2.5 : 0.8}
-                          strokeLinejoin="round"
-                          opacity={isSelected ? 1 : 0.87}
-                          className="cursor-pointer transition-[opacity,stroke,stroke-width] duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#b97a16]"
+                          fill={color}
+                          stroke="none"
+                          opacity={
+                            isSelected ? 1 : selectedKabupatenName ? 0.38 : 0.78
+                          }
+                          className="cursor-pointer transition-[fill,opacity] duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#b97a16]"
                           role="button"
                           tabIndex={0}
                           aria-pressed={isSelected}
-                          aria-label={`${props.kab_name}. Risiko ${props.sampleRisk.status}.`}
+                          aria-label={`${props.kab_name}. Kategori: ${kat}. Skor: ${skor}.`}
                           onClick={() => selectKabupaten(props.kab_name)}
                           onKeyDown={(event) => {
                             if (event.key === "Enter" || event.key === " ") {
@@ -759,6 +995,32 @@ export function PublicRiskMapPage() {
                     })}
                   </g>
                 </>
+              )}
+
+              {userMarkerPoint && (
+                <g
+                  transform={`translate(${userMarkerPoint[0]}, ${userMarkerPoint[1]})`}
+                  pointerEvents="none"
+                  aria-label="Lokasi Anda"
+                  role="img"
+                >
+                  <circle
+                    r="9"
+                    className={
+                      reduceMotion
+                        ? "fill-[#173e32]/35"
+                        : "animate-ping fill-[#173e32]/35"
+                    }
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <circle
+                    r="3.5"
+                    fill="#ffffff"
+                    stroke="#173e32"
+                    strokeWidth="2.5"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </g>
               )}
             </svg>
           </motion.div>
@@ -832,9 +1094,15 @@ export function PublicRiskMapPage() {
               </p>
               <p className="text-[11px] text-[#557267]">
                 Status:{" "}
-                {selectedKabupatenFeature
-                  ? selectedKabupatenFeature.properties.sampleRisk.status
-                  : selectedProvinceFeature?.properties.sampleRisk.status}
+                <span className="font-semibold text-[#173e32]">
+                  {selectedKabupatenFeature
+                    ? getKabupatenRisk(selectedKabupatenFeature)?.kategori ||
+                      "Data tidak tersedia"
+                    : selectedProvinceFeature
+                      ? getProvinceRisk(selectedProvinceFeature.properties.name)
+                          .status
+                      : ""}
+                </span>
               </p>
             </div>
             <Button
@@ -851,14 +1119,14 @@ export function PublicRiskMapPage() {
       {/* Aside details and filter drawer */}
       <aside
         id="risk-map-sidebar"
-        className={`absolute right-4 top-4 z-30 max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-xl overflow-y-auto rounded-2xl border border-[#173e32]/15 bg-[#f5f1e8]/95 p-5 shadow-[0_18px_50px_rgba(23,62,50,0.16)] backdrop-blur sm:p-6 transition-transform duration-200 ${
+        className={`absolute right-4 top-4 z-30 max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-md overflow-y-auto rounded-xl border border-[#173e32]/15 bg-[#fbfaf5] p-5 shadow-[0_16px_36px_rgba(23,62,50,0.14)] sm:right-5 sm:top-5 sm:max-h-[calc(100dvh-2.5rem)] sm:p-6 transition-transform duration-200 ${
           isMobilePanelOpen ? "translate-y-0" : "max-sm:hidden"
         }`}
         aria-label="Pencarian wilayah dan indikator kekeringan"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#dce7d7] text-[#173e32]">
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#dce7d7] text-[#173e32]">
               <MapPinned className="size-5" />
             </span>
             <div>
@@ -916,7 +1184,7 @@ export function PublicRiskMapPage() {
           </button>
         </div>
 
-        {/* Legend */}
+        {/* Legend: 3 Standard Colors */}
         <section
           className="mt-4 rounded-xl border border-[#173e32]/12 bg-white/65 p-4"
           aria-label="Legenda status risiko"
@@ -924,22 +1192,56 @@ export function PublicRiskMapPage() {
           <div className="flex items-center gap-2">
             <Leaf className="size-4 text-[#36564a]" aria-hidden="true" />
             <div>
-              <h2 className="text-sm font-semibold text-[#173e32]">Kategori risiko</h2>
-              <p className="text-xs text-[#557267]">Warna peta menunjukkan tingkat perhatian wilayah.</p>
+              <h2 className="text-sm font-semibold text-[#173e32]">
+                3 Tingkat Risiko
+              </h2>
+              <p className="text-xs text-[#557267]">
+                Warna peta menunjukkan tingkat perhatian wilayah.
+              </p>
             </div>
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <div className="flex items-start gap-2.5 rounded-lg border border-[#15803D]/60 bg-[#15803D]/15 p-2.5 text-[#173e32]">
-              <Leaf className="mt-0.5 size-4 shrink-0 text-[#166534]" aria-hidden="true" />
-              <div><p className="text-xs font-semibold">Rendah</p><p className="mt-0.5 text-[11px] leading-4">Kondisi dalam pemantauan rutin.</p></div>
+            <div className="flex items-start gap-2.5 rounded-lg border border-[#22c55e]/50 bg-[#22c55e]/15 p-2.5 text-[#14532d]">
+              <Leaf
+                className="mt-0.5 size-4 shrink-0 text-[#16a34a]"
+                aria-hidden="true"
+              />
+              <div>
+                <p className="text-xs font-bold text-[#15803d]">
+                  Hijau: Normal
+                </p>
+                <p className="mt-0.5 text-[11px] leading-4 text-[#166534]">
+                  Kondisi vegetasi aman dan dalam batas normal.
+                </p>
+              </div>
             </div>
-            <div className="flex items-start gap-2.5 rounded-lg border border-[#FACC15]/70 bg-[#FACC15]/20 p-2.5 text-[#4a3500]">
-              <CloudRain className="mt-0.5 size-4 shrink-0 text-[#A16207]" aria-hidden="true" />
-              <div><p className="text-xs font-semibold">Sedang</p><p className="mt-0.5 text-[11px] leading-4">Perlu ditinjau lebih lanjut.</p></div>
+            <div className="flex items-start gap-2.5 rounded-lg border border-[#eab308]/60 bg-[#eab308]/20 p-2.5 text-[#713f12]">
+              <CloudRain
+                className="mt-0.5 size-4 shrink-0 text-[#ca8a04]"
+                aria-hidden="true"
+              />
+              <div>
+                <p className="text-xs font-bold text-[#854d0e]">
+                  Kuning: Warning
+                </p>
+                <p className="mt-0.5 text-[11px] leading-4 text-[#854d0e]">
+                  Perlu kewaspadaan deviasi vegetasi & curah hujan.
+                </p>
+              </div>
             </div>
-            <div className="flex items-start gap-2.5 rounded-lg border border-[#DC2626]/60 bg-[#DC2626]/15 p-2.5 text-[#7c1d0f]">
-              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-[#B91C1C]" aria-hidden="true" />
-              <div><p className="text-xs font-semibold">Tinggi</p><p className="mt-0.5 text-[11px] leading-4">Perlu menjadi prioritas perhatian.</p></div>
+            <div className="flex items-start gap-2.5 rounded-lg border border-[#ef4444]/50 bg-[#ef4444]/15 p-2.5 text-[#7f1d1d]">
+              <TriangleAlert
+                className="mt-0.5 size-4 shrink-0 text-[#dc2626]"
+                aria-hidden="true"
+              />
+              <div>
+                <p className="text-xs font-bold text-[#991b1b]">
+                  Merah: Kritis
+                </p>
+                <p className="mt-0.5 text-[11px] leading-4 text-[#991b1b]">
+                  Prioritas perhatian & mitigasi darurat.
+                </p>
+              </div>
             </div>
           </div>
         </section>
@@ -1000,144 +1302,274 @@ export function PublicRiskMapPage() {
 
           <p className="mt-2 text-xs leading-5 text-[#36564a]">{searchState}</p>
 
-          {/* Table display */}
+          {/* Table display & AI Analysis */}
           {selectedKabupatenFeature ? (
-            <div className="mt-3 overflow-hidden rounded-lg border border-[#173e32]/15">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-[#dce7d7] text-[#173e32]">
-                  <tr>
-                    <th className="px-3 py-2 font-semibold">
-                      Indikator Kabupaten
-                    </th>
-                    <th className="px-3 py-2 font-semibold">Nilai</th>
-                    <th className="px-3 py-2 font-semibold">Keterangan</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#173e32]/10 bg-white/70">
-                  <tr>
-                    <td className="px-3 py-2 text-[#36564a]">Status Risiko</td>
-                    <td
-                      className="px-3 py-2 font-semibold"
-                      style={{ color: "#173e32" }}
-                    >
-                      {selectedKabupatenFeature.properties.sampleRisk.status}
-                    </td>
-                    <td className="px-3 py-2 text-[#557267]">
-                      {selectedKabupatenFeature.properties.sampleRisk.condition}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-3 py-2 text-[#36564a]">
-                      Anomali FAPAR (30 hari)
-                    </td>
-                    <td className="px-3 py-2 font-medium text-[#173e32]">
-                      {selectedKabupatenFeature.properties.sampleRisk.fapar}
-                    </td>
-                    <td className="px-3 py-2 text-[#557267]">
-                      Satelit HDX/JRC
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-3 py-2 text-[#36564a]">
-                      Curah hujan akumulasi
-                    </td>
-                    <td className="px-3 py-2 font-medium text-[#173e32]">
-                      {selectedKabupatenFeature.properties.sampleRisk.rain}
-                    </td>
-                    <td className="px-3 py-2 text-[#557267]">
-                      Agrometeorologi
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-3 py-2 text-[#36564a]">
-                      Indeks stres vegetasi
-                    </td>
-                    <td className="px-3 py-2 font-medium text-[#173e32]">
-                      {
-                        selectedKabupatenFeature.properties.sampleRisk
-                          .vegetationIndex
-                      }
-                    </td>
-                    <td className="px-3 py-2 text-[#557267]">
-                      Skala 0 sampai 1
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          ) : selectedProvinceFeature ? (
-            <div className="mt-3 overflow-hidden rounded-lg border border-[#173e32]/15">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-[#dce7d7] text-[#173e32]">
-                  <tr>
-                    <th className="px-3 py-2 font-semibold">
-                      Indikator Provinsi
-                    </th>
-                    <th className="px-3 py-2 font-semibold">Nilai</th>
-                    <th className="px-3 py-2 font-semibold">Keterangan</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#173e32]/10 bg-white/70">
-                  <tr>
-                    <td className="px-3 py-2 text-[#36564a]">Status Risiko</td>
-                    <td
-                      className="px-3 py-2 font-semibold"
-                      style={{ color: "#173e32" }}
-                    >
-                      {selectedProvinceFeature.properties.sampleRisk.status}
-                    </td>
-                    <td className="px-3 py-2 text-[#557267]">
-                      {selectedProvinceFeature.properties.sampleRisk.condition}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-3 py-2 text-[#36564a]">
-                      Anomali FAPAR (30 hari)
-                    </td>
-                    <td className="px-3 py-2 font-medium text-[#173e32]">
-                      {selectedProvinceFeature.properties.sampleRisk.fapar}
-                    </td>
-                    <td className="px-3 py-2 text-[#557267]">
-                      Satelit HDX/JRC
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-3 py-2 text-[#36564a]">
-                      Curah hujan akumulasi
-                    </td>
-                    <td className="px-3 py-2 font-medium text-[#173e32]">
-                      {selectedProvinceFeature.properties.sampleRisk.rain}
-                    </td>
-                    <td className="px-3 py-2 text-[#557267]">
-                      Agrometeorologi
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            (() => {
+              const currentRisk = getKabupatenRisk(selectedKabupatenFeature);
+              const kat = (
+                currentRisk?.kategori || "data tidak tersedia"
+              ).toLowerCase();
+              const skor =
+                currentRisk?.skor_risiko !== null &&
+                currentRisk?.skor_risiko !== undefined
+                  ? Math.round(Number(currentRisk.skor_risiko))
+                  : null;
+              const faktorText = Array.isArray(currentRisk?.faktor_penyebab)
+                ? currentRisk.faktor_penyebab.join(", ")
+                : currentRisk?.faktor_penyebab ||
+                  (skor === null
+                    ? "Data satelit vegetasi pada periode ini terlalu sedikit untuk dinilai (awan/tutupan)"
+                    : "Kondisi vegetasi normal");
 
-              {granularity === "provinsi" && (
-                <div className="p-3 bg-[#dce7d7]/40 border-t border-[#173e32]/10">
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      setGranularity("kabupaten");
-                      zoomToProvince(selectedProvinceFeature);
-                    }}
-                    className="w-full min-h-10 bg-[#173e32] text-[#f5f1e8] text-xs font-semibold hover:bg-[#245542]"
-                  >
-                    <Layers className="size-3.5" />
-                    Buka Peta Kabupaten di{" "}
-                    {selectedProvinceFeature.properties.name}
-                  </Button>
+              const hasWeather = currentRisk?.punya_data_cuaca !== false;
+
+              return (
+                <div className="mt-3 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#173e32]/5 p-2.5 border border-[#173e32]/10">
+                    <span className="text-[11px] font-medium text-[#557267]">
+                      Kondisi per {selectedDate} (30 hari)
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                        kat === "tinggi" || kat === "kritis"
+                          ? "bg-[#ef4444]/15 text-[#991b1b] border border-[#ef4444]/30"
+                          : kat === "sedang" || kat === "warning"
+                            ? "bg-[#eab308]/20 text-[#854d0e] border border-[#eab308]/40"
+                            : "bg-[#22c55e]/15 text-[#166534] border border-[#22c55e]/30"
+                      }`}
+                    >
+                      <span
+                        className={`size-1.5 rounded-full ${
+                          kat === "tinggi" || kat === "kritis"
+                            ? "bg-[#ef4444]"
+                            : kat === "sedang" || kat === "warning"
+                              ? "bg-[#eab308]"
+                              : "bg-[#22c55e]"
+                        }`}
+                      />
+                      {kat === "tinggi" || kat === "kritis"
+                        ? "Kritis (Merah)"
+                        : kat === "sedang" || kat === "warning"
+                          ? "Warning (Kuning)"
+                          : "Normal (Hijau)"}
+                    </span>
+                  </div>
+
+                  {/* Indikator Table */}
+                  <div className="overflow-hidden rounded-lg border border-[#173e32]/15 bg-white/80">
+                    <table className="w-full text-left text-xs">
+                      <tbody className="divide-y divide-[#173e32]/10">
+                        <tr>
+                          <td className="px-3 py-2 text-[#557267] w-1/3">
+                            Skor Risiko
+                          </td>
+                          <td className="px-3 py-2 font-bold text-[#173e32]">
+                            {skor !== null ? (
+                              <span className="inline-flex items-center gap-2">
+                                <span className="font-mono text-sm">
+                                  {skor} / 100
+                                </span>
+                                <span className="text-[10px] font-normal text-[#557267]">
+                                  (persentil deviasi)
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="italic text-[#64748b]">
+                                Data tidak tersedia
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="px-3 py-2 text-[#557267]">
+                            Faktor Utama
+                          </td>
+                          <td className="px-3 py-2 text-xs font-medium text-[#234538] leading-relaxed">
+                            {faktorText}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="px-3 py-2 text-[#557267]">
+                            Data Cuaca BMKG
+                          </td>
+                          <td className="px-3 py-2 text-xs">
+                            {hasWeather ? (
+                              <span className="inline-flex items-center gap-1 font-medium text-[#2b5930]">
+                                <CheckCircle2
+                                  size={13}
+                                  className="text-[#6d9670]"
+                                />
+                                Tersedia (CHIRPS)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 font-medium text-[#b97a16]">
+                                <HelpCircle size={13} />
+                                Wilayah pemekaran Papua 2022 (belum tercakup)
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                        {currentRisk?.rfq !== undefined && (
+                          <tr>
+                            <td className="px-3 py-2 text-[#557267]">
+                              Rasio Hujan (RFQ)
+                            </td>
+                            <td className="px-3 py-2 font-mono text-xs text-[#173e32]">
+                              {currentRisk.rfq}% dari normal
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="rounded-xl border border-[#173e32]/20 bg-[#f1f6ef] p-3.5 shadow-sm">
+                    <div className="border-b border-[#173e32]/10 pb-2.5">
+                      <h4 className="text-xs font-bold text-[#173e32]">
+                        Analisis situasi dan rekomendasi
+                      </h4>
+                      <p className="mt-0.5 text-[10px] text-[#557267]">
+                        Ringkasan berdasarkan indikator wilayah terpilih.
+                      </p>
+                    </div>
+
+                    <div className="mt-2.5">
+                      {isLoadingAI ? (
+                        <div className="flex items-center gap-2 py-4 text-xs text-[#557267]">
+                          <RefreshCw className="size-4 animate-spin text-[#b97a16]" />
+                          <span>
+                            Menyiapkan analisis risiko...
+                          </span>
+                        </div>
+                      ) : aiAnalysis?.analisis_ai ? (
+                        <div className="space-y-2.5">
+                          <p className="text-xs leading-relaxed text-[#234538]">
+                            {aiAnalysis.analisis_ai.penjelasan}
+                          </p>
+                          <div className="rounded-lg bg-white/90 p-2.5 border border-[#173e32]/10">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-[#173e32]">
+                              Langkah Rekomendasi Mitigasi:
+                            </p>
+                            <ul className="mt-1.5 space-y-1.5">
+                              {(Array.isArray(
+                                aiAnalysis.analisis_ai.rekomendasi,
+                              )
+                                ? aiAnalysis.analisis_ai.rekomendasi
+                                : [aiAnalysis.analisis_ai.rekomendasi]
+                              ).map((rec, i) => (
+                                <li
+                                  key={i}
+                                  className="flex items-start gap-1.5 text-xs text-[#36564a]"
+                                >
+                                  <span className="grid size-4 shrink-0 place-items-center rounded-full bg-[#173e32]/10 text-[10px] font-bold text-[#173e32] mt-0.5">
+                                    {i + 1}
+                                  </span>
+                                  <span>{rec}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[#557267]">
+                          Pilih kabupaten untuk membaca analisis wilayah.
+                        </p>
+                      )}
+
+                      <div className="mt-2.5 flex items-center justify-between border-t border-[#173e32]/10 pt-2 text-[10px] text-[#557267]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const risk = getKabupatenRisk(
+                              selectedKabupatenFeature,
+                            );
+                            setIsLoadingAI(true);
+                            const id =
+                              risk?.kode_kabupaten ||
+                              selectedKabupatenFeature.properties.id;
+                            risikoApi
+                              .getAnalisisAI(id, risk || undefined)
+                              .then((res) => {
+                                setAiAnalysis(res);
+                                setIsLoadingAI(false);
+                              });
+                          }}
+                          className="ml-auto inline-flex min-h-8 items-center gap-1 rounded-md px-2 font-semibold text-[#173e32] hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16]"
+                        >
+                          <RefreshCw size={10} /> Perbarui ringkasan
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
+              );
+            })()
+          ) : selectedProvinceFeature ? (
+            (() => {
+              const provRisk = getProvinceRisk(
+                selectedProvinceFeature.properties.name,
+              );
+              return (
+                <div className="mt-3 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#173e32]/5 p-2.5 border border-[#173e32]/10">
+                    <span className="text-[11px] font-medium text-[#557267]">
+                      {provRisk.total} Kabupaten/Kota tercakup
+                    </span>
+                    <span className="text-xs font-semibold text-[#173e32]">
+                      Status: {provRisk.status}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="rounded-lg border border-[#ef4444]/30 bg-[#ef4444]/10 p-2.5">
+                      <p className="text-base font-bold text-[#991b1b]">
+                        {provRisk.tinggi}
+                      </p>
+                      <p className="text-[10px] font-semibold text-[#991b1b]">
+                        Merah (Kritis)
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-[#eab308]/40 bg-[#eab308]/15 p-2.5">
+                      <p className="text-base font-bold text-[#854d0e]">
+                        {provRisk.sedang}
+                      </p>
+                      <p className="text-[10px] font-semibold text-[#854d0e]">
+                        Kuning (Warning)
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-[#22c55e]/30 bg-[#22c55e]/10 p-2.5">
+                      <p className="text-base font-bold text-[#166534]">
+                        {provRisk.rendah}
+                      </p>
+                      <p className="text-[10px] font-semibold text-[#166534]">
+                        Hijau (Normal)
+                      </p>
+                    </div>
+                  </div>
+
+                  {granularity === "provinsi" && (
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setGranularity("kabupaten");
+                        zoomToProvince(selectedProvinceFeature);
+                      }}
+                      className="w-full min-h-11 bg-[#173e32] text-[#f5f1e8] text-xs font-semibold hover:bg-[#245542]"
+                    >
+                      <Layers className="size-4" />
+                      Buka Peta Kabupaten di{" "}
+                      {selectedProvinceFeature.properties.name}
+                    </Button>
+                  )}
+                </div>
+              );
+            })()
           ) : (
-            <div className="mt-3 rounded-lg border border-dashed border-[#173e32]/25 bg-white/40 p-3 text-center">
+            <div className="mt-3 rounded-lg border border-dashed border-[#173e32]/25 bg-white/40 p-4 text-center">
               <Info className="mx-auto size-5 text-[#557267]" />
               <p className="mt-1 text-xs text-[#36564a]">
                 Klik provinsi atau kabupaten pada peta untuk melihat indikator
-                risiko vegetasi dan kekeringan.
+                risiko vegetasi, skor deviasi, dan rekomendasi AI.
               </p>
             </div>
           )}
