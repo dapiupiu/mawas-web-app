@@ -1,5 +1,12 @@
 # React + TypeScript + Vite
 
+## Backend API
+
+- **Development:** Jalankan Backend Express di port `5000` dan Frontend dengan `npm run dev`. Request `/api/*` dari Vite akan diteruskan ke `http://localhost:5000`, jadi browser memakai origin Vite dan tidak perlu alamat Backend lokal di kode Frontend.
+- **Production (Vercel):** Atur environment variable `VITE_API_URL` ke URL publik Backend Express, misalnya `https://backend.example.com`. Setelah mengubah variable, lakukan redeploy Frontend. Backend harus di-deploy dan mengizinkan origin domain Frontend melalui CORS.
+
+Jangan set `VITE_API_URL` ke `localhost` pada deployment production. Environment variable `VITE_*` hanya untuk konfigurasi publik, bukan untuk secret seperti `GROQ_API_KEY` atau `SUPABASE_SERVICE_ROLE_KEY`.
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:
