@@ -34,7 +34,12 @@ import { Link, useSearchParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/map/SearchableSelect";
-import { risikoApi, type RisikoItem, type AnalisisAIResponse } from "@/lib/api";
+import {
+  latestRisikoPerKabupaten,
+  risikoApi,
+  type RisikoItem,
+  type AnalisisAIResponse,
+} from "@/lib/api";
 import { matchProvince } from "@/lib/provinces";
 import type {
   IndonesiaGeoJson,
@@ -102,26 +107,10 @@ export function PublicRiskMapPage() {
   // Model & AI state
   const [searchParams] = useSearchParams();
   const [riskItems, setRiskItems] = useState<RisikoItem[]>([]);
-  const [selectedDate, setSelectedDate] = useState("2026-09-11");
+  const [selectedDate, setSelectedDate] = useState("");
   const [aiAnalysis, setAiAnalysis] = useState<AnalisisAIResponse | null>(null);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
-
-  // Stepper function to advance or rewind date by days
-  const changeDate = (days: number) => {
-    try {
-      const parts = selectedDate.split("-").map(Number);
-      if (parts.length === 3) {
-        const d = new Date(parts[0], parts[1] - 1, parts[2]);
-        d.setDate(d.getDate() + days);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
-        setSelectedDate(`${yyyy}-${mm}-${dd}`);
-      }
-    } catch {
-      // ignore
-    }
-  };
+  const [aiAnalysisError, setAiAnalysisError] = useState("");
 
   // Gesture and view transforms
   const [zoom, setZoom] = useState(1);
@@ -167,7 +156,14 @@ export function PublicRiskMapPage() {
     risikoApi
       .getAllRisiko()
       .then((items) => {
-        if (!ignore) setRiskItems(items);
+        if (!ignore) {
+          setRiskItems(items);
+          const dates = items
+            .map((item) => item.tanggal)
+            .filter((date): date is string => Boolean(date))
+            .sort();
+          if (dates.length > 0) setSelectedDate(dates[dates.length - 1]);
+        }
       })
       .catch((err) => {
         console.warn("Gagal memuat risiko:", err);
@@ -204,10 +200,41 @@ export function PublicRiskMapPage() {
       );
   }, []);
 
-  // Map lookup by id_fe and kode
+  const riskDates = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          riskItems
+            .map((item) => item.tanggal)
+            .filter((date): date is string => Boolean(date)),
+        ),
+      ).sort(),
+    [riskItems],
+  );
+  const minRiskDate = riskDates[0] || "";
+  const maxRiskDate = riskDates[riskDates.length - 1] || "";
+  const latestRiskDate = maxRiskDate;
+  const changeDate = (direction: -1 | 1) => {
+    const selectedSnapshot = riskDates.filter((date) => date <= (selectedDate || latestRiskDate)).at(-1);
+    const currentIndex = selectedSnapshot ? riskDates.indexOf(selectedSnapshot) : 0;
+    const nextDate = riskDates[currentIndex + direction];
+    if (nextDate) setSelectedDate(nextDate);
+  };
+  const risksForSelectedDate = useMemo(
+    () =>
+      latestRisikoPerKabupaten(
+        riskItems.filter(
+          (item) =>
+            !selectedDate || !item.tanggal || item.tanggal <= selectedDate,
+        ),
+      ),
+    [riskItems, selectedDate],
+  );
+
+  // Map lookup by id_fe and code/name fallback for older database rows.
   const riskByFeId = useMemo(() => {
     const map = new Map<string, RisikoItem>();
-    for (const item of riskItems) {
+    for (const item of risksForSelectedDate) {
       if (item.id_fe) map.set(item.id_fe, item);
       if (item.kode_kabupaten) map.set(item.kode_kabupaten, item);
       if (item.nama_kabupaten) {
@@ -219,7 +246,7 @@ export function PublicRiskMapPage() {
       }
     }
     return map;
-  }, [riskItems]);
+  }, [risksForSelectedDate]);
 
   const getKabupatenRisk = (feature: KabupatenFeature): RisikoItem | null => {
     const p = feature.properties;
@@ -239,41 +266,44 @@ export function PublicRiskMapPage() {
     if (kat === "tinggi" || kat === "kritis") {
       return "#ef4444"; // Merah Terang (Kritis)
     }
-    if (kat === "sedang" || kat === "warning") {
+    if (kat === "sedang" || kat === "warning" || kat === "waspada") {
       return "#eab308"; // Kuning Terang (Warning)
     }
-    // Semua status normal, rendah, maupun default = Hijau Terang Normal
-    return "#22c55e"; // Hijau Terang (Normal)
+    if (kat === "rendah" || kat === "normal" || kat === "aman") {
+      return "#22c55e"; // Hijau Terang (Normal)
+    }
+    return "#94a3b8";
   };
 
   // Aggregated risk per province for national overview
   const getProvinceRisk = (provName: string) => {
-    const items = riskItems.filter(
+    const items = risksForSelectedDate.filter(
       (item) => item.provinsi && matchProvince(provName, item.provinsi),
     );
     if (!items.length) {
       return {
-        color: "#22c55e",
-        status: "Normal",
+        color: "#94a3b8",
+        status: "Data tidak tersedia",
         total: 0,
         tinggi: 0,
         sedang: 0,
         rendah: 0,
+        tidakTersedia: 0,
       };
     }
     const tinggi = items.filter(
-      (k) => (k.kategori || "").toLowerCase() === "tinggi",
+      (k) => ["tinggi", "kritis"].includes((k.kategori || "").toLowerCase()),
     ).length;
     const sedang = items.filter(
-      (k) => (k.kategori || "").toLowerCase() === "sedang",
+      (k) => ["sedang", "waspada", "warning"].includes((k.kategori || "").toLowerCase()),
     ).length;
     const rendah = items.filter(
-      (k) => (k.kategori || "").toLowerCase() === "rendah",
+      (k) => ["rendah", "normal", "aman"].includes((k.kategori || "").toLowerCase()),
     ).length;
     const kosong = items.filter(
       (k) =>
         k.skor_risiko === null ||
-        (k.kategori || "").toLowerCase() === "data tidak tersedia",
+        ["data tidak tersedia", "tidak_tersedia"].includes((k.kategori || "").toLowerCase()),
     ).length;
 
     let color = "#22c55e";
@@ -283,14 +313,21 @@ export function PublicRiskMapPage() {
       status = "Kritis";
     } else if (sedang > 0) {
       color = "#eab308"; // Kuning Terang (Warning)
-      status = "Warning";
+      status = "Waspada";
+    } else if (rendah === 0) {
+      color = "#94a3b8";
+      status = "Data tidak tersedia";
+    }
+    if (items.length > 0 && kosong > 0 && (tinggi > 0 || sedang > 0 || rendah > 0)) {
+      status += " (data tidak lengkap)";
     }
     return {
       color,
       status,
       tinggi,
       sedang,
-      rendah: rendah + kosong,
+      rendah,
+      tidakTersedia: kosong,
       total: items.length,
     };
   };
@@ -514,25 +551,29 @@ export function PublicRiskMapPage() {
   useEffect(() => {
     if (!selectedKabupatenFeature) {
       setAiAnalysis(null);
+      setAiAnalysisError("");
       return;
     }
     const risk = getKabupatenRisk(selectedKabupatenFeature);
     setIsLoadingAI(true);
+    setAiAnalysisError("");
     const id =
       risk?.kode_kabupaten ||
       selectedKabupatenFeature.properties.id ||
       selectedKabupatenFeature.properties.kab_name;
 
     risikoApi
-      .getAnalisisAI(id, risk || undefined)
+      .getAnalisisAI(id, risk?.tanggal)
       .then((res) => {
         setAiAnalysis(res);
         setIsLoadingAI(false);
       })
       .catch(() => {
+        setAiAnalysis(null);
+        setAiAnalysisError("Analisis belum tersedia. Silakan coba lagi.");
         setIsLoadingAI(false);
       });
-  }, [selectedKabupatenFeature, riskByFeId]);
+  }, [selectedKabupatenFeature, riskByFeId, selectedDate]);
 
   // Form submit
   const handleFilterSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -716,9 +757,10 @@ export function PublicRiskMapPage() {
           <button
             type="button"
             onClick={() => changeDate(-1)}
-            className="inline-flex min-h-9 size-9 items-center justify-center rounded text-[#36564a] hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16] transition-colors"
+            disabled={riskDates.length <= 1 || selectedDate <= minRiskDate}
+            className="inline-flex min-h-9 size-9 items-center justify-center rounded text-[#36564a] hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Tanggal sebelumnya"
-            title="Maju 1 hari sebelumnya"
+            title={riskDates.length <= 1 ? "Hanya tersedia satu tanggal snapshot" : "Snapshot sebelumnya"}
           >
             <ChevronLeft className="size-4" />
           </button>
@@ -730,19 +772,26 @@ export function PublicRiskMapPage() {
             <input
               type="date"
               value={selectedDate}
-              min="2026-08-01"
-              max="2026-09-30"
+              min={minRiskDate || undefined}
+              max={maxRiskDate || undefined}
+              disabled={riskDates.length <= 1}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent text-xs font-bold text-[#173e32] cursor-pointer focus:outline-none"
-              title="Pilih tanggal rujukan model"
+              className="bg-transparent text-xs font-bold text-[#173e32] cursor-pointer focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
+              title={riskDates.length <= 1 ? "Filter tanggal hanya tersedia jika ada beberapa snapshot" : "Pilih tanggal snapshot"}
             />
+            {riskDates.length === 1 && (
+              <span className="hidden text-[10px] font-medium text-[#557267] sm:inline">
+                1 snapshot
+              </span>
+            )}
           </div>
           <button
             type="button"
             onClick={() => changeDate(1)}
-            className="inline-flex min-h-9 size-9 items-center justify-center rounded text-[#36564a] hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16] transition-colors"
+            disabled={riskDates.length <= 1 || selectedDate >= maxRiskDate}
+            className="inline-flex min-h-9 size-9 items-center justify-center rounded text-[#36564a] hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Tanggal berikutnya"
-            title="Maju 1 hari berikutnya"
+            title={riskDates.length <= 1 ? "Hanya tersedia satu tanggal snapshot" : "Snapshot berikutnya"}
           >
             <ChevronRight className="size-4" />
           </button>
@@ -917,7 +966,7 @@ export function PublicRiskMapPage() {
                         role="button"
                         tabIndex={0}
                         aria-pressed={isSelected}
-                        aria-label={`Provinsi ${props.name}. Status: ${provRisk.status} (${provRisk.tinggi} tinggi, ${provRisk.sedang} sedang, ${provRisk.rendah} rendah).`}
+                        aria-label={`Provinsi ${props.name}. Status: ${provRisk.status} (${provRisk.tinggi} kritis, ${provRisk.sedang} waspada, ${provRisk.rendah} normal, ${provRisk.tidakTersedia} tanpa skor).`}
                         onClick={() => selectProvince(props.name, false)}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" || event.key === " ") {
@@ -1321,37 +1370,44 @@ export function PublicRiskMapPage() {
                     ? "Data satelit vegetasi pada periode ini terlalu sedikit untuk dinilai (awan/tutupan)"
                     : "Kondisi vegetasi normal");
 
-              const hasWeather = currentRisk?.punya_data_cuaca !== false;
+              const hasWeather = currentRisk?.punya_data_cuaca === true;
 
               return (
                 <div className="mt-3 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#173e32]/5 p-2.5 border border-[#173e32]/10">
                     <span className="text-[11px] font-medium text-[#557267]">
-                      Kondisi per {selectedDate} (30 hari)
+                      Kondisi per {currentRisk?.tanggal || selectedDate} (
+                      {currentRisk?.horizon_hari || 30} hari)
                     </span>
                     <span
                       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
                         kat === "tinggi" || kat === "kritis"
                           ? "bg-[#ef4444]/15 text-[#991b1b] border border-[#ef4444]/30"
-                          : kat === "sedang" || kat === "warning"
+                          : kat === "sedang" || kat === "warning" || kat === "waspada"
                             ? "bg-[#eab308]/20 text-[#854d0e] border border-[#eab308]/40"
-                            : "bg-[#22c55e]/15 text-[#166534] border border-[#22c55e]/30"
+                            : skor === null
+                              ? "bg-slate-500/10 text-slate-600 border border-slate-500/20"
+                              : "bg-[#22c55e]/15 text-[#166534] border border-[#22c55e]/30"
                       }`}
                     >
                       <span
                         className={`size-1.5 rounded-full ${
                           kat === "tinggi" || kat === "kritis"
                             ? "bg-[#ef4444]"
-                            : kat === "sedang" || kat === "warning"
+                            : kat === "sedang" || kat === "warning" || kat === "waspada"
                               ? "bg-[#eab308]"
-                              : "bg-[#22c55e]"
+                              : skor === null
+                                ? "bg-slate-400"
+                                : "bg-[#22c55e]"
                         }`}
                       />
                       {kat === "tinggi" || kat === "kritis"
                         ? "Kritis (Merah)"
-                        : kat === "sedang" || kat === "warning"
+                        : kat === "sedang" || kat === "warning" || kat === "waspada"
                           ? "Warning (Kuning)"
-                          : "Normal (Hijau)"}
+                          : skor === null
+                            ? "Data tidak tersedia"
+                            : "Normal (Hijau)"}
                     </span>
                   </div>
 
@@ -1401,10 +1457,15 @@ export function PublicRiskMapPage() {
                                 />
                                 Tersedia (CHIRPS)
                               </span>
-                            ) : (
+                            ) : currentRisk?.punya_data_cuaca === false ? (
                               <span className="inline-flex items-center gap-1 font-medium text-[#b97a16]">
                                 <HelpCircle size={13} />
                                 Wilayah pemekaran Papua 2022 (belum tercakup)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[#64748b]">
+                                <HelpCircle size={13} />
+                                Informasi tidak tersedia
                               </span>
                             )}
                           </td>
@@ -1441,34 +1502,49 @@ export function PublicRiskMapPage() {
                             Menyiapkan analisis risiko...
                           </span>
                         </div>
+                      ) : aiAnalysisError ? (
+                        <p className="text-xs text-[#557267]">{aiAnalysisError}</p>
                       ) : aiAnalysis?.analisis_ai ? (
                         <div className="space-y-2.5">
                           <p className="text-xs leading-relaxed text-[#234538]">
                             {aiAnalysis.analisis_ai.penjelasan}
                           </p>
-                          <div className="rounded-lg bg-white/90 p-2.5 border border-[#173e32]/10">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-[#173e32]">
-                              Langkah Rekomendasi Mitigasi:
-                            </p>
-                            <ul className="mt-1.5 space-y-1.5">
-                              {(Array.isArray(
-                                aiAnalysis.analisis_ai.rekomendasi,
-                              )
-                                ? aiAnalysis.analisis_ai.rekomendasi
-                                : [aiAnalysis.analisis_ai.rekomendasi]
-                              ).map((rec, i) => (
-                                <li
-                                  key={i}
-                                  className="flex items-start gap-1.5 text-xs text-[#36564a]"
-                                >
-                                  <span className="grid size-4 shrink-0 place-items-center rounded-full bg-[#173e32]/10 text-[10px] font-bold text-[#173e32] mt-0.5">
-                                    {i + 1}
-                                  </span>
-                                  <span>{rec}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
+                          <p className="text-[10px] leading-relaxed text-[#557267]">
+                            Kondisi per{" "}
+                            {new Date(`${aiAnalysis.tanggal}T00:00:00`).toLocaleDateString(
+                              "id-ID",
+                              { day: "numeric", month: "long", year: "numeric" },
+                            )}{" "}
+                            (bukan real-time). Skor adalah peringkat relatif, bukan prakiraan absolut;
+                            data hujan masih prelim dan 41 kabupaten tidak memiliki data cuaca.
+                            Urutan risiko bersifat indikatif dan model belum mengungguli aturan sederhana;
+                            verifikasi lapangan tetap diperlukan.
+                          </p>
+                          {aiAnalysis.analisis_ai.rekomendasi.length > 0 && (
+                            <div className="rounded-lg bg-white/90 p-2.5 border border-[#173e32]/10">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-[#173e32]">
+                                Langkah Rekomendasi Mitigasi:
+                              </p>
+                              <ul className="mt-1.5 space-y-1.5">
+                                {(Array.isArray(
+                                  aiAnalysis.analisis_ai.rekomendasi,
+                                )
+                                  ? aiAnalysis.analisis_ai.rekomendasi
+                                  : [aiAnalysis.analisis_ai.rekomendasi]
+                                ).map((rec, i) => (
+                                  <li
+                                    key={i}
+                                    className="flex items-start gap-1.5 text-xs text-[#36564a]"
+                                  >
+                                    <span className="grid size-4 shrink-0 place-items-center rounded-full bg-[#173e32]/10 text-[10px] font-bold text-[#173e32] mt-0.5">
+                                      {i + 1}
+                                    </span>
+                                    <span>{rec}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <p className="text-xs text-[#557267]">
@@ -1487,10 +1563,16 @@ export function PublicRiskMapPage() {
                             const id =
                               risk?.kode_kabupaten ||
                               selectedKabupatenFeature.properties.id;
+                            setAiAnalysisError("");
                             risikoApi
-                              .getAnalisisAI(id, risk || undefined)
+                              .getAnalisisAI(id, risk?.tanggal)
                               .then((res) => {
                                 setAiAnalysis(res);
+                                setIsLoadingAI(false);
+                              })
+                              .catch(() => {
+                                setAiAnalysis(null);
+                                setAiAnalysisError("Analisis belum tersedia. Silakan coba lagi.");
                                 setIsLoadingAI(false);
                               });
                           }}
@@ -1514,6 +1596,8 @@ export function PublicRiskMapPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#173e32]/5 p-2.5 border border-[#173e32]/10">
                     <span className="text-[11px] font-medium text-[#557267]">
                       {provRisk.total} Kabupaten/Kota tercakup
+                      {provRisk.tidakTersedia > 0 &&
+                        ` · ${provRisk.tidakTersedia} tanpa skor`}
                     </span>
                     <span className="text-xs font-semibold text-[#173e32]">
                       Status: {provRisk.status}

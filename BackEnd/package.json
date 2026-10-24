@@ -5,14 +5,15 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon --dns-result-order=ipv4first server.js"
+    "dev": "nodemon --dns-result-order=ipv4first server.js",
+    "seed": "node scripts/seedData.js",
+    "seed:genai-cache": "node scripts/seedGenaiCache.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@google/genai": "^2.30.0",
     "@supabase/supabase-js": "^2.117.2",
     "cors": "^2.8.6",
     "dotenv": "^18.0.5",

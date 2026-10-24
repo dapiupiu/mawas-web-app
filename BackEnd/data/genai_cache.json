@@ -1,0 +1,112 @@
+{
+  "16.74|2026-09-11|openai/gpt-oss-20b|855a6454": {
+    "teks": "Kabupaten Kota Prabumulih masuk kategori risiko tinggi, skor 100 dari 100, lebih berisiko dari semua kabupaten lain pada tanggal ini. Hujan 10 hari terakhir di bawah normal, curah hujan hanya 42,7% dari biasanya, jadi lebih kering dari normal. Tanaman mulai kekurangan air, meski belum kritis. Sebaiknya verifikasi lapangan, siapkan pompa air, dan koordinasi dengan dinas pertanian segera.",
+    "dihasilkan_pada": "2026-10-23T19:37:37Z",
+    "model": "openai/gpt-oss-20b",
+    "usage": {
+      "queue_time": 0.583815311,
+      "prompt_tokens": 1648,
+      "prompt_time": 0.083653723,
+      "completion_tokens": 115,
+      "completion_time": 0.138361026,
+      "total_tokens": 1763,
+      "total_time": 0.222014749,
+      "completion_tokens_details": {
+        "reasoning_tokens": 6
+      }
+    },
+    "latensi": 1.3052827999999863
+  },
+  "13.02|2026-09-11|openai/gpt-oss-20b|855a6454": {
+    "teks": "Kabupaten Solok masuk kategori risiko sedang, dengan skor 77,4 dari 100, lebih berisiko dari 77% kabupaten lain pada tanggal ini. Hujan 10 hari terakhir di bawah normal, curah hujan hanya 80,2% dari biasanya, jadi lebih kering dari normal. Tanaman mulai kekurangan air, meski belum kritis. Sebaiknya pantau kelembapan tanah dan curah hujan setiap minggu, karena hujan yang di bawah normal bisa memperburuk kondisi.",
+    "dihasilkan_pada": "2026-10-23T19:37:38Z",
+    "model": "openai/gpt-oss-20b",
+    "usage": {
+      "queue_time": 0.315479302,
+      "prompt_tokens": 1645,
+      "prompt_time": 0.596248782,
+      "completion_tokens": 123,
+      "completion_time": 0.131901033,
+      "total_tokens": 1768,
+      "total_time": 0.728149815,
+      "prompt_tokens_details": {
+        "cached_tokens": 1536
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 6
+      }
+    },
+    "latensi": 1.5262969999994311
+  },
+  "11.08|2026-09-11|openai/gpt-oss-20b|855a6454": {
+    "teks": "Kabupaten Aceh Utara masuk kategori risiko rendah, skor 24,9 dari 100, lebih aman dari 75% kabupaten lain. Hujan 10 hari terakhir mendekati normal, curah hujan 100,8% dari biasanya, jadi lebih basah dari normal. Tanaman masih cukup terhidrasi, tidak ada tanda kekurangan air. Lakukan pemantauan rutin kelembapan tanah, karena curah hujan lebih basah dapat menimbulkan genangan.",
+    "dihasilkan_pada": "2026-10-23T19:37:39Z",
+    "model": "openai/gpt-oss-20b",
+    "usage": {
+      "queue_time": 0.099997232,
+      "prompt_tokens": 1647,
+      "prompt_time": 0.142279456,
+      "completion_tokens": 120,
+      "completion_time": 0.130230489,
+      "total_tokens": 1767,
+      "total_time": 0.272509945,
+      "completion_tokens_details": {
+        "reasoning_tokens": 9
+      }
+    },
+    "latensi": 0.8818128999992041
+  },
+  "12.71|2026-09-11|openai/gpt-oss-20b|855a6454": {
+    "teks": "Kondisi risiko tidak dapat ditentukan karena data tidak tersedia. Penyebabnya adalah data curah hujan belum tersedia untuk wilayah ini. Tanpa data curah hujan, tidak dapat menilai dampak terhadap pertanian. Sebaiknya verifikasi data satelit atau gunakan sumber cuaca lain untuk melengkapi informasi.",
+    "dihasilkan_pada": "2026-10-23T19:37:40Z",
+    "model": "openai/gpt-oss-20b",
+    "usage": {
+      "queue_time": 0.209939166,
+      "prompt_tokens": 1653,
+      "prompt_time": 0.085353485,
+      "completion_tokens": 118,
+      "completion_time": 0.132628559,
+      "total_tokens": 1771,
+      "total_time": 0.217982044,
+      "completion_tokens_details": {
+        "reasoning_tokens": 43
+      }
+    },
+    "latensi": 0.9307944000001953
+  },
+  "91.71|2026-09-11|openai/gpt-oss-20b|855a6454": {
+    "teks": "Kabupaten Kota Jayapura masuk kategori risiko rendah, skor 7,3 dari 100, lebih aman dari 93% kabupaten lain. Faktor penyebabnya adalah hujan 10 hari terakhir di bawah normal, curah hujan hanya 7,2% dari biasanya, lebih kering dari normal. Tanaman di wilayah ini masih cukup terjaga, namun risiko kekeringan masih ada. Sebaiknya lakukan pemantauan rutin kelembapan tanah dan curah hujan, karena curah hujan sangat rendah.",
+    "dihasilkan_pada": "2026-10-23T19:37:42Z",
+    "model": "openai/gpt-oss-20b",
+    "usage": {
+      "queue_time": 0.891516434,
+      "prompt_tokens": 1644,
+      "prompt_time": 0.104270808,
+      "completion_tokens": 126,
+      "completion_time": 0.153565803,
+      "total_tokens": 1770,
+      "total_time": 0.257836611,
+      "completion_tokens_details": {
+        "reasoning_tokens": 9
+      }
+    },
+    "latensi": 1.7152803000008134
+  },
+  "12.09|2026-09-11|openai/gpt-oss-20b|855a6454": {
+    "teks": "Kabupaten Asahan masuk kategori risiko rendah, skor 3,81 dari 100, lebih aman dari 96% kabupaten lain pada tanggal ini. Penyebabnya adalah hujan 10 hari terakhir di bawah normal, curah hujan hanya 67,48% dari biasanya. Tanaman di wilayah ini masih cukup terhidrasi, meski curah hujan sedikit lebih rendah dari rata-rata. Sebaiknya lakukan pemantauan rutin kelembapan tanah dan curah hujan, karena data menunjukkan hujan sedikit di bawah normal.",
+    "dihasilkan_pada": "2026-10-24T01:53:46.760Z",
+    "model": "openai/gpt-oss-20b",
+    "usage": {
+      "queue_time": 0.050204603,
+      "prompt_tokens": 1641,
+      "prompt_time": 0.117353255,
+      "completion_tokens": 128,
+      "completion_time": 0.143075862,
+      "total_tokens": 1769,
+      "total_time": 0.260429117,
+      "completion_tokens_details": {
+        "reasoning_tokens": 9
+      }
+    }
+  }
+}

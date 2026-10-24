@@ -5,6 +5,7 @@ import { Globe, MapPin, Wheat } from "lucide-react";
 import { geometryToSvgPath, projectMercator } from "@/lib/geoProjection";
 import type { IndonesiaGeoJson, ProvinceFeature } from "@/types/map";
 import { matchProvince } from "@/lib/provinces";
+import { latestRisikoPerKabupaten, risikoApi, type RisikoItem } from "@/lib/api";
 
 function isPointInRing(
   point: [number, number],
@@ -60,6 +61,8 @@ export function RiskMapPreview() {
   const urlProv = searchParams.get("prov");
   const [geoData, setGeoData] = useState<IndonesiaGeoJson | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRiskLoading, setIsRiskLoading] = useState(true);
+  const [riskItems, setRiskItems] = useState<RisikoItem[]>([]);
   const [isZoomedIn, setIsZoomedIn] = useState(true);
   const shouldReduceMotion = useReducedMotion();
 
@@ -138,6 +141,24 @@ export function RiskMapPreview() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    risikoApi
+      .getAllRisiko()
+      .then((items) => {
+        if (active) setRiskItems(latestRisikoPerKabupaten(items));
+      })
+      .catch((error) => {
+        console.error("Gagal memuat risiko untuk pratinjau peta:", error);
+      })
+      .finally(() => {
+        if (active) setIsRiskLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // Deteksi provinsi aktif pengguna (prioritas: URL search param > geolocation)
   const activeProvince = useMemo(() => {
     if (!geoData) return null;
@@ -163,6 +184,82 @@ export function RiskMapPreview() {
         : false,
     }));
   }, [geoData, activeProvince]);
+
+  const getProvinceStats = (provinceName?: string) => {
+    const items = provinceName
+      ? riskItems.filter(
+          (item) => item.provinsi && matchProvince(provinceName, item.provinsi),
+        )
+      : riskItems;
+    const kritis = items.filter((item) => item.kategori === "tinggi").length;
+    const waspada = items.filter((item) => item.kategori === "sedang").length;
+    const normal = items.filter((item) => item.kategori === "rendah").length;
+    const unavailable = items.filter(
+      (item) =>
+        item.skor_risiko === null ||
+        item.kategori === "data tidak tersedia",
+    ).length;
+    const scores = items
+      .map((item) => item.skor_risiko)
+      .filter((score): score is number => score !== null && Number.isFinite(score));
+    const totalScored = scores.length;
+    return {
+      items,
+      kritis,
+      waspada,
+      normal,
+      unavailable,
+      total: items.length,
+      totalScored,
+      averageScore: totalScored
+        ? scores.reduce((sum, score) => sum + score, 0) / totalScored
+        : null,
+      color:
+        kritis > 0
+          ? "#ef4444"
+          : waspada > 0
+            ? "#eab308"
+            : normal > 0
+              ? "#22c55e"
+              : "#dce5d9",
+      status:
+        kritis > 0
+          ? "Kritis"
+          : waspada > 0
+            ? "Waspada"
+            : normal > 0
+              ? "Normal"
+              : "Data tidak tersedia",
+    };
+  };
+
+  const activeStats = getProvinceStats(activeProvince?.properties.name);
+  const displayedStats = activeStats;
+  const circumference = 239;
+  const greenArc = displayedStats.totalScored
+    ? (displayedStats.normal / displayedStats.totalScored) * circumference
+    : 0;
+  const yellowArc = displayedStats.totalScored
+    ? (displayedStats.waspada / displayedStats.totalScored) * circumference
+    : 0;
+  const redArc = displayedStats.totalScored
+    ? (displayedStats.kritis / displayedStats.totalScored) * circumference
+    : 0;
+  const percentage = (count: number) =>
+    displayedStats.totalScored
+      ? Math.round((count / displayedStats.totalScored) * 100)
+      : 0;
+  const categoryExamples = (category: "tinggi" | "sedang" | "rendah") =>
+    displayedStats.items
+      .filter((item) => item.kategori === category)
+      .slice(0, 3)
+      .map((item) => item.nama_kabupaten)
+      .join(", ") || "Tidak ada data";
+  const snapshotDate = displayedStats.items
+    .map((item) => item.tanggal)
+    .filter((date): date is string => Boolean(date))
+    .sort()
+    .at(-1);
 
   // Titik koordinat proyeksi marker pengguna
   const userMarkerPoint = useMemo(() => {
@@ -210,7 +307,7 @@ export function RiskMapPreview() {
             "radial-gradient(ellipse 92% 84% at 50% 50%, #000 50%, transparent 98%)",
         }}
       >
-        {isLoading ? (
+        {isLoading || isRiskLoading ? (
           <div className="flex h-[260px] sm:h-[320px] w-full items-center justify-center text-xs text-[#557267]">
             Memuat peta wilayah...
           </div>
@@ -239,42 +336,16 @@ export function RiskMapPreview() {
 
             {/* Render 34 Provinsi GeoJSON */}
             {provincePaths.map((item) => {
-              if (activeProvince) {
-                if (item.isUserProvince) {
-                  // Wilayah provinsi pengguna: Hijau botol Mawas
-                  return (
-                    <path
-                      key={item.id}
-                      d={item.path}
-                      fill="#173e32"
-                      stroke="#ffffff"
-                      strokeWidth="1.2"
-                      vectorEffect="non-scaling-stroke"
-                    />
-                  );
-                }
-                // Wilayah lain: Sage netral lembut
-                return (
-                  <path
-                    key={item.id}
-                    d={item.path}
-                    fill="#dce5d9"
-                    stroke="#c8d6c4"
-                    strokeWidth="0.8"
-                    opacity="0.85"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                );
-              }
-
-              // Jika lokasi belum/tidak diberikan: 1 Indonesia utuh Sabang sampai Merauke
+              const stats = getProvinceStats(item.name);
+              const focused = item.isUserProvince && isZoomedIn;
               return (
                 <path
                   key={item.id}
                   d={item.path}
-                  fill="#36634c"
-                  stroke="#f5f1e8"
-                  strokeWidth="0.8"
+                  fill={stats.color}
+                  stroke={focused ? "#173e32" : "#f5f1e8"}
+                  strokeWidth={focused ? "1.8" : "0.8"}
+                  opacity={stats.total ? 0.9 : 0.65}
                   vectorEffect="non-scaling-stroke"
                 />
               );
@@ -387,13 +458,21 @@ export function RiskMapPreview() {
           }
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           className={`relative w-full cursor-default overflow-hidden rounded-xl p-3.5 shadow-md sm:p-4 ${
-            activeProvince ? "bg-[#9b1c1c]" : "bg-[#173e32]"
+            activeStats.kritis > 0
+              ? "bg-[#9b1c1c]"
+              : activeStats.waspada > 0
+                ? "bg-[#eab308]"
+                : activeStats.normal > 0
+                  ? "bg-[#173e32]"
+                  : "bg-slate-500"
           }`}
           style={{ minHeight: "142px" }}
         >
           {/* Wheat dekoratif — pojok kanan atas */}
           <Wheat
-            className="absolute -right-3 -top-3 size-20 rotate-[15deg] text-white/[0.06]"
+            className={`absolute -right-3 -top-3 size-20 rotate-[15deg] ${
+              activeStats.waspada > 0 ? "text-black/[0.06]" : "text-white/[0.06]"
+            }`}
             aria-hidden="true"
           />
 
@@ -402,61 +481,89 @@ export function RiskMapPreview() {
             {/* Baris atas: wilayah + badge status */}
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">
+                <p className={`text-[10px] font-bold uppercase tracking-widest ${
+                  activeStats.waspada > 0 ? "text-[#713f12]/70" : "text-white/50"
+                }`}>
                   {activeProvince
                     ? activeProvince.properties.name
                     : "Indonesia"}
                 </p>
                 <p
                   className={`text-xs font-semibold ${
-                    activeProvince ? "text-[#fca5a5]" : "text-[#a3d9b1]"
+                    activeStats.kritis > 0
+                      ? "text-[#fca5a5]"
+                      : activeStats.waspada > 0
+                        ? "text-[#422006]"
+                        : activeStats.normal > 0
+                          ? "text-[#a3d9b1]"
+                          : "text-white/80"
                   }`}
                 >
-                  {activeProvince ? "Stres vegetasi aktif" : "Kondisi normal"}
+                  Status risiko wilayah
                 </p>
               </div>
               <span
                 className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold ${
-                  activeProvince
-                    ? "bg-white/20 text-white"
-                    : "bg-white/15 text-white/90"
+                  activeStats.kritis > 0
+                    ? "bg-[#ef4444]/20 text-[#fecaca]"
+                    : activeStats.waspada > 0
+                      ? "bg-[#ca8a04] text-[#422006]"
+                      : activeStats.normal > 0
+                        ? "bg-[#22c55e]/20 text-[#bbf7d0]"
+                        : "bg-white/15 text-white/80"
                 }`}
               >
-                {activeProvince ? "Risiko Tinggi" : "Normal"}
+                {activeStats.status}
               </span>
             </div>
 
-            {/* Baris bawah: angka besar + metrik FAPAR & Hujan */}
+            {/* Ringkasan skor dan jumlah kategori dari risiko wilayah */}
             <div className="flex items-end justify-between gap-3 pt-2">
               <div>
-                <span className="font-mono text-3xl font-bold leading-none text-white tabular-nums sm:text-4xl">
-                  {activeProvince ? "0.52" : "0.18"}
+                <span className={`font-mono text-3xl font-bold leading-none tabular-nums sm:text-4xl ${
+                  activeStats.waspada > 0 ? "text-[#422006]" : "text-white"
+                }`}>
+                  {activeStats.averageScore === null
+                    ? "—"
+                    : Math.round(activeStats.averageScore)}
                 </span>
-                <p className="mt-0.5 text-[10px] font-medium text-white/50">
-                  Indeks stres vegetasi
+                <p className={`mt-0.5 text-[10px] font-medium ${
+                  activeStats.waspada > 0 ? "text-[#713f12]/80" : "text-white/50"
+                }`}>
+                  Skor risiko rata-rata / 100
                 </p>
               </div>
 
               {/* Metrik samping */}
               <div className="flex items-end gap-3 text-right">
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-white/40">
-                    FAPAR
+                  <p className={`text-[9px] uppercase tracking-wider ${
+                    activeStats.waspada > 0 ? "text-[#713f12]/70" : "text-white/40"
+                  }`}>
+                    Kritis
                   </p>
                   <p
                     className={`font-mono text-xs font-bold leading-tight sm:text-sm ${
-                      activeProvince ? "text-[#fca5a5]" : "text-[#a3d9b1]"
+                      activeStats.kritis > 0
+                        ? "text-[#fca5a5]"
+                        : activeStats.waspada > 0
+                          ? "text-[#713f12]"
+                          : "text-[#a3d9b1]"
                     }`}
                   >
-                    {activeProvince ? "-0.22" : "-0.03"}
+                    {activeStats.kritis}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-white/40">
-                    Hujan
+                  <p className={`text-[9px] uppercase tracking-wider ${
+                    activeStats.waspada > 0 ? "text-[#713f12]/70" : "text-white/40"
+                  }`}>
+                    Data
                   </p>
-                  <p className="font-mono text-xs font-bold leading-tight text-white/90 sm:text-sm">
-                    50 mm
+                  <p className={`font-mono text-xs font-bold leading-tight sm:text-sm ${
+                    activeStats.waspada > 0 ? "text-[#422006]" : "text-white/90"
+                  }`}>
+                    {activeStats.totalScored}/{activeStats.total}
                   </p>
                 </div>
               </div>
@@ -512,7 +619,6 @@ export function RiskMapPreview() {
                   stroke="#e8eedd"
                   strokeWidth="12"
                 />
-                {/* Arc Hijau (36.4% -> strokeDasharray: 87 / 239) */}
                 <circle
                   cx="50"
                   cy="50"
@@ -520,10 +626,9 @@ export function RiskMapPreview() {
                   fill="none"
                   stroke="#4caf7d"
                   strokeWidth="12"
-                  strokeDasharray="87 239"
+                  strokeDasharray={`${greenArc} ${circumference - greenArc}`}
                   strokeDashoffset="0"
                 />
-                {/* Arc Kuning (36.4% -> strokeDasharray: 87 / 239) */}
                 <circle
                   cx="50"
                   cy="50"
@@ -531,10 +636,9 @@ export function RiskMapPreview() {
                   fill="none"
                   stroke="#d4a028"
                   strokeWidth="12"
-                  strokeDasharray="87 239"
-                  strokeDashoffset="-87"
+                  strokeDasharray={`${yellowArc} ${circumference - yellowArc}`}
+                  strokeDashoffset={-greenArc}
                 />
-                {/* Arc Merah (27.2% -> strokeDasharray: 65 / 239) */}
                 <circle
                   cx="50"
                   cy="50"
@@ -542,17 +646,17 @@ export function RiskMapPreview() {
                   fill="none"
                   stroke="#c0392b"
                   strokeWidth="12"
-                  strokeDasharray="65 239"
-                  strokeDashoffset="-174"
+                  strokeDasharray={`${redArc} ${circumference - redArc}`}
+                  strokeDashoffset={-(greenArc + yellowArc)}
                 />
               </svg>
               {/* Teks di tengah Donut Chart */}
               <div className="absolute inset-0 flex flex-col items-center justify-center leading-none">
                 <span className="font-mono text-base font-bold text-[#173e32]">
-                  {activeProvince ? "11" : "34"}
+                  {displayedStats.total}
                 </span>
                 <span className="mt-0.5 text-[8.5px] font-bold uppercase tracking-wider text-[#557267]">
-                  {activeProvince ? "KAB" : "PROV"}
+                  {activeProvince ? "KAB" : "DATA"}
                 </span>
               </div>
             </div>
@@ -560,23 +664,29 @@ export function RiskMapPreview() {
             {/* Rincian Kategori di Samping Pie Chart Dominan */}
             <div className="min-w-0 flex-1 space-y-1 text-[10.5px]">
               <div className="flex items-baseline justify-between gap-1 leading-snug">
-                <span className="font-bold text-[#c0392b]">3 Kritis (27%)</span>
-                <span className="truncate text-[10px] text-[#557267]" title={activeProvince ? "Labuhanbatu, Palas, Asahan" : "Sulteng, Papua Sel, NTT"}>
-                  {activeProvince ? "Labuhanbatu, Palas, Asahan" : "Sulteng, Papua Sel, NTT"}
+                <span className="font-bold text-[#c0392b]">
+                  {displayedStats.kritis} Kritis ({percentage(displayedStats.kritis)}%)
+                </span>
+                <span className="truncate text-[10px] text-[#557267]" title={categoryExamples("tinggi")}>
+                  {categoryExamples("tinggi")}
                 </span>
               </div>
 
               <div className="flex items-baseline justify-between gap-1 leading-snug">
-                <span className="font-bold text-[#8a6000]">4 Waspada (36%)</span>
-                <span className="truncate text-[10px] text-[#557267]" title={activeProvince ? "Langkat, Karo, Simalungun..." : "Jateng, NTT, Jatim"}>
-                  {activeProvince ? "Langkat, Karo, Simalungun..." : "Jateng, NTT, Jatim"}
+                <span className="font-bold text-[#8a6000]">
+                  {displayedStats.waspada} Waspada ({percentage(displayedStats.waspada)}%)
+                </span>
+                <span className="truncate text-[10px] text-[#557267]" title={categoryExamples("sedang")}>
+                  {categoryExamples("sedang")}
                 </span>
               </div>
 
               <div className="flex items-baseline justify-between gap-1 leading-snug">
-                <span className="font-bold text-[#1f5c3a]">4 Normal (36%)</span>
-                <span className="truncate text-[10px] text-[#557267]" title={activeProvince ? "Deli Serdang, Sergai..." : "Sumbar, Sulsel, Kaltim"}>
-                  {activeProvince ? "Deli Serdang, Sergai..." : "Sumbar, Sulsel, Kaltim"}
+                <span className="font-bold text-[#1f5c3a]">
+                  {displayedStats.normal} Normal ({percentage(displayedStats.normal)}%)
+                </span>
+                <span className="truncate text-[10px] text-[#557267]" title={categoryExamples("rendah")}>
+                  {categoryExamples("rendah")}
                 </span>
               </div>
             </div>
@@ -584,8 +694,12 @@ export function RiskMapPreview() {
 
           {/* Subteks bawah */}
           <div className="border-t border-[#173e32]/6 pt-1 text-[9.5px] text-[#557267] flex justify-between">
-            <span>Pemutakhiran satelit 30 hari</span>
-            <span className="font-mono text-[#173e32] font-medium">3 Sentra Kritis</span>
+            <span>
+              {snapshotDate ? `Snapshot ${snapshotDate}` : "Snapshot risiko tidak tersedia"}
+            </span>
+            <span className="font-mono text-[#173e32] font-medium">
+              {displayedStats.totalScored} berdata · {displayedStats.unavailable} tanpa skor
+            </span>
           </div>
         </motion.div>
       </div>
