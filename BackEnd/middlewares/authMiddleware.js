@@ -26,6 +26,9 @@ const authenticateToken = async (req, res, next) => {
                 error: "Token tidak valid atau sudah kadaluwarsa." 
             });
         }
+        if (user.banned_until && new Date(user.banned_until) > new Date()) {
+            return res.status(403).json({ error: "Akun dinonaktifkan. Hubungi Superadmin." });
+        }
 
         // Simpan objek user ke req.user agar bisa dibaca middleware/controller berikutnya
         req.user = user;

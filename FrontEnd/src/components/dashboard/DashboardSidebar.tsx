@@ -23,6 +23,7 @@ interface DashboardSidebarProps {
   onCloseMobile: () => void;
   pendingTaskCount: number;
   criticalCount: number;
+  onEditProfile: () => void;
 }
 
 export function DashboardSidebar({
@@ -34,8 +35,9 @@ export function DashboardSidebar({
   onCloseMobile,
   pendingTaskCount,
   criticalCount,
+  onEditProfile,
 }: DashboardSidebarProps) {
-  const isAdmin = user.role === "admin";
+  const isSuperadmin = user.role === "superadmin";
 
   const navItems = [
     {
@@ -67,7 +69,7 @@ export function DashboardSidebar({
       label: "Pembaruan Model ML",
       icon: UploadCloud,
     },
-    ...(isAdmin ? [{
+    ...(isSuperadmin ? [{
       id: "pengguna" as DashboardTab,
       label: "Manajemen Akun",
       icon: Users,
@@ -77,11 +79,7 @@ export function DashboardSidebar({
   ];
 
   const displayName = user.username ?? user.name ?? user.email.split("@")[0];
-  const roleName = user.role === "admin" 
-    ? "Administrator Sistem" 
-    : user.role === "pembuat_kebijakan" 
-      ? "Pembuat Kebijakan" 
-      : "Operator Wilayah";
+  const roleName = isSuperadmin ? "Superadmin" : "Operator Wilayah";
 
   return (
     <>
@@ -179,10 +177,17 @@ export function DashboardSidebar({
         {/* Footer Area: User Profile Card, Buka Peta Publik, & Logout */}
         <div className="border-t border-[#173e32]/10 p-3 space-y-2 bg-[#f5f1e8]/60 shrink-0 mt-auto">
           {/* User Profile Info Card */}
-          <div className="rounded-xl border border-[#173e32]/10 bg-white p-3 shadow-2xs">
+          <button
+            type="button"
+            onClick={onEditProfile}
+            className="w-full rounded-xl border border-[#173e32]/10 bg-white p-3 text-left shadow-2xs hover:bg-[#f5f1e8] focus-visible:outline-2 focus-visible:outline-[#10b981]"
+            aria-label="Ubah profil akun"
+          >
             <div className="flex items-center gap-2.5">
-              <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#173e32] text-xs font-bold text-[#f5f1e8] shadow-inner">
-                {displayName.charAt(0).toUpperCase()}
+              <div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#173e32] text-xs font-bold text-[#f5f1e8] shadow-inner">
+                {user.avatar_url
+                  ? <img src={user.avatar_url} alt="" className="size-full object-cover" />
+                  : displayName.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-bold text-[#173e32]">
@@ -192,9 +197,10 @@ export function DashboardSidebar({
                   <UserCheck className="size-3 text-[#10b981]" />
                   <span className="truncate">{roleName}</span>
                 </div>
+                <p className="mt-1 text-[10px] font-semibold text-[#10b981]">Ubah profil</p>
               </div>
             </div>
-          </div>
+          </button>
 
           {/* Action Links */}
           <a

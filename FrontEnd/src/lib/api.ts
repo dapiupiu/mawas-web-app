@@ -1,4 +1,5 @@
 import axios from "axios"
+import type { ManagedUser } from "@/types/dashboard"
 
 const BASE_URL = import.meta.env.DEV ? "" : (import.meta.env.VITE_API_URL ?? "")
 
@@ -36,6 +37,7 @@ export interface StoredUser {
   role?: string
   username?: string
   name?: string
+  avatar_url?: string | null
 }
 
 export interface RisikoItem {
@@ -167,27 +169,23 @@ function decodeJwt(token: string): Record<string, unknown> | null {
 export const authApi = {
   /** Login email + password → simpan token & user ke localStorage */
   async login(email: string, password: string) {
-    const { data } = await api.post<{ message: string; token: string }>(
+    const { data } = await api.post<{
+      message: string
+      token: string
+      user: { id: string; email: string; nama: string; role: string; avatar_url: string | null }
+    }>(
       "/api/auth/login",
       { email, password },
     )
-    // Decode Supabase JWT untuk ambil id & email tanpa endpoint /me
-    const claims = decodeJwt(data.token)
     const user: StoredUser = {
-      id: (claims?.sub as string) ?? "",
-      email: (claims?.email as string) ?? email,
-      role: (claims?.["user_metadata"] as { role?: string })?.role,
+      id: data.user.id,
+      email: data.user.email,
+      role: data.user.role,
+      name: data.user.nama,
+      username: data.user.nama,
+      avatar_url: data.user.avatar_url,
     }
     return { token: data.token, user }
-  },
-
-  /** Register email + password + username (role default 'operator' di BE) */
-  async register(email: string, password: string, username?: string) {
-    const { data } = await api.post<{
-      message: string
-      user: { id: string; email: string }
-    }>("/api/auth/register", { email, password, username })
-    return { message: data.message, user: data.user }
   },
 
   /** Google OAuth — BE mengembalikan URL redirect Google, lalu browser diarahkan */
@@ -196,12 +194,62 @@ export const authApi = {
     return data.url
   },
 
-  /** Verifikasi akses ke endpoint yang dilindungi middleware authenticateToken & authorizeRoles */
-  async getOperatorDashboard() {
-    const { data } = await api.get<{ message: string; user: StoredUser }>(
-      "/api/auth/operator-dashboard",
+  async updateProfile(payload: { nama?: string; avatar_url?: string }) {
+    const { data } = await api.put<{ user: { id: string; email: string; nama: string; role: string; avatar_url: string | null } }>(
+      "/api/auth/profile",
+      payload,
+    )
+    return data.user
+  },
+
+  async uploadAvatar(file: File) {
+    const { data } = await api.post<{ avatar_url: string }>(
+      "/api/auth/profile/avatar",
+      await file.arrayBuffer(),
+      { headers: { "Content-Type": file.type } },
+    )
+    return data.avatar_url
+  },
+
+  async changePassword(newPassword: string) {
+    const { data } = await api.put<{ message: string }>(
+      "/api/auth/change-password",
+      { newPassword },
     )
     return data
+  },
+
+  async getOperators() {
+    const { data } = await api.get<{ data: ManagedUser[] }>("/api/users/operators")
+    return data.data
+  },
+
+  async createOperator(payload: { email: string; password: string; nama?: string }) {
+    const { data } = await api.post<{ data: ManagedUser }>("/api/users/operators", payload)
+    return data.data
+  },
+
+  async updateOperator(id: string, payload: { nama?: string; status?: "aktif" | "nonaktif" }) {
+    const { data } = await api.patch<{ data: ManagedUser }>(
+      `/api/users/operators/${encodeURIComponent(id)}`,
+      payload,
+    )
+    return data.data
+  },
+
+  async resetOperatorPassword(id: string, password: string) {
+    const { data } = await api.put<{ temporaryPassword: string }>(
+      `/api/users/operators/${encodeURIComponent(id)}/password`,
+      { password },
+    )
+    return data.temporaryPassword
+  },
+
+  async deleteOperator(id: string) {
+    const { data } = await api.delete<{ data: ManagedUser }>(
+      `/api/users/operators/${encodeURIComponent(id)}`,
+    )
+    return data.data
   },
 
   logout() {
@@ -237,16 +285,53 @@ export function isAuthenticated() {
 export function checkAndStoreOAuthCallback(): boolean {
   if (typeof window === "undefined") return false
   const hash = window.location.hash
+  const params = new URLSearchParams(hash.replace(/^#/, ""))
+  const queryParams = new URLSearchParams(window.location.search)
+  const oauthError = params.get("error_code") || queryParams.get("error_code") || params.get("error") || queryParams.get("error")
+  if (oauthError) {
+    const errorDescription = params.get("error_description") || queryParams.get("error_description") || ""
+    const isRegistrationRequired = oauthError === "signup_disabled"
+      || oauthError === "user_not_found"
+      || /signup disabled|user not allowed|not allowed to sign up/i.test(errorDescription)
+    const errorMessage = isRegistrationRequired
+      ? "Akun Google belum terdaftar. Minta Superadmin mendaftarkan akun dengan email ini terlebih dahulu."
+      : oauthError === "user_banned"
+        ? "Akses akun ini telah dicabut dan statusnya nonaktif. Hubungi Superadmin."
+        : "Login Google gagal. Pastikan akun sudah terdaftar dan coba lagi."
+    sessionStorage.setItem("mawas_oauth_notice", errorMessage)
+    localStorage.removeItem("mawas_token")
+    localStorage.removeItem("mawas_user")
+    window.history.replaceState(null, "", window.location.pathname)
+    return false
+  }
   if (hash && hash.includes("access_token=")) {
     try {
-      const params = new URLSearchParams(hash.replace(/^#/, ""))
       const token = params.get("access_token")
       if (token) {
         const claims = decodeJwt(token)
+        const metadata = claims?.["user_metadata"] as {
+          role?: string
+          nama?: string
+          name?: string
+          avatar_url?: string
+        } | undefined
+        if (metadata?.role !== "superadmin" && metadata?.role !== "operator") {
+          sessionStorage.setItem(
+            "mawas_oauth_notice",
+            "Akun Google belum terdaftar di Mawas. Minta Superadmin membuat akun dengan email ini terlebih dahulu.",
+          )
+          localStorage.removeItem("mawas_token")
+          localStorage.removeItem("mawas_user")
+          window.history.replaceState(null, "", window.location.pathname)
+          return false
+        }
         const user: StoredUser = {
           id: (claims?.sub as string) ?? "",
           email: (claims?.email as string) ?? "",
-          role: (claims?.["user_metadata"] as { role?: string })?.role ?? "operator",
+          role: metadata?.role,
+          name: metadata?.nama || metadata?.name,
+          username: metadata?.nama || metadata?.name,
+          avatar_url: metadata?.avatar_url || null,
         }
         saveSession(token, user)
         window.history.replaceState(null, "", window.location.pathname)

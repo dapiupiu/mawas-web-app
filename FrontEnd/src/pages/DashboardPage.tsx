@@ -15,7 +15,7 @@ import {
   Calendar,
   X
 } from "lucide-react";
-import { api, authApi, getStoredUser, type StoredUser } from "@/lib/api";
+import { api, authApi, getStoredUser, saveSession, type StoredUser } from "@/lib/api";
 import type { DashboardTab, KnowledgeArticle, PredictionItem, ManagedUser } from "@/types/dashboard";
 import { 
   getDashboardArticles, 
@@ -23,8 +23,6 @@ import {
   saveDashboardPredictions,
   getDashboardModelMeta,
   saveDashboardModelMeta,
-  getDashboardUsers,
-  saveDashboardUsers,
   type ModelMetadata
 } from "@/lib/dashboardData";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -35,15 +33,18 @@ import { ReportsView } from "@/components/dashboard/ReportsView";
 import { ArticlesView } from "@/components/dashboard/ArticlesView";
 import { UploadModelView } from "@/components/dashboard/UploadModelView";
 import { UserManagementView } from "@/components/dashboard/UserManagementView";
+import { ProfileSettingsModal } from "@/components/dashboard/ProfileSettingsModal";
 
 export function DashboardPage() {
   const navigate = useNavigate();
   const [user, setUser] = useState<StoredUser | null>(null);
   const [tab, setTab] = useState<DashboardTab>("ringkasan");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [predictions, setPredictions] = useState<PredictionItem[]>([]);
   const [articles, setArticles] = useState<KnowledgeArticle[]>([]);
   const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [usersLoadError, setUsersLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<PredictionItem | null>(null);
   const [verificationNotice, setVerificationNotice] = useState<{
     success: boolean;
@@ -58,11 +59,26 @@ export function DashboardPage() {
       navigate("/signin", { replace: true });
       return;
     }
+    if (stored.role !== "superadmin" && stored.role !== "operator") {
+      authApi.logout();
+      navigate("/signin", { replace: true });
+      return;
+    }
     setUser(stored);
 
     setArticles(getDashboardArticles());
-    setUsers(getDashboardUsers());
     setModelMeta(getDashboardModelMeta());
+    if (stored.role === "superadmin") {
+      authApi.getOperators()
+        .then((items) => {
+          setUsers(items);
+          setUsersLoadError(null);
+        })
+        .catch((error) => {
+          console.error("Gagal memuat akun operator dari backend:", error);
+          setUsersLoadError("Daftar akun gagal dimuat dari Backend. Muat ulang halaman atau periksa koneksi.");
+        });
+    }
 
     api.get<{ data: PredictionItem[] }>("/api/verifikasi")
       .then(({ data }) => setPredictions(data.data))
@@ -126,7 +142,6 @@ export function DashboardPage() {
 
   const handleUsersChange = (nextUsers: ManagedUser[]) => {
     setUsers(nextUsers);
-    saveDashboardUsers(nextUsers);
   };
 
   return (
@@ -144,6 +159,7 @@ export function DashboardPage() {
         onCloseMobile={() => setMenuOpen(false)}
         pendingTaskCount={pending.length}
         criticalCount={critical.length}
+        onEditProfile={() => setProfileOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -449,10 +465,11 @@ export function DashboardPage() {
               )}
 
               {/* 6. Modul Superadmin: Manajemen Akun Pengguna */}
-              {tab === "pengguna" && (
+              {tab === "pengguna" && user.role === "superadmin" && (
                 <UserManagementView
                   users={users}
                   onUsersChange={handleUsersChange}
+                  loadError={usersLoadError}
                 />
               )}
             </motion.div>
@@ -468,6 +485,17 @@ export function DashboardPage() {
         onSave={saveVerification}
         onSaveResult={setVerificationNotice}
       />
+      {profileOpen && (
+        <ProfileSettingsModal
+          user={user}
+          onClose={() => setProfileOpen(false)}
+          onSaved={(updatedUser) => {
+            const token = localStorage.getItem("mawas_token");
+            if (token) saveSession(token, updatedUser);
+            setUser(updatedUser);
+          }}
+        />
+      )}
       {verificationNotice && (
         <div
           role={verificationNotice.success ? "status" : "alert"}

@@ -9,6 +9,7 @@ import {
   MapPinned,
   Sprout,
   ShieldCheck,
+  Building2
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -215,7 +216,11 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(() => sessionStorage.getItem("mawas_oauth_notice") || "");
+
+  useEffect(() => {
+    sessionStorage.removeItem("mawas_oauth_notice");
+  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -343,7 +348,7 @@ export function LoginPage() {
 
               <Field
                 id="password"
-                label="Kata Sandi"
+                label="Kata Sandi / Dummy Password"
                 type="password"
                 placeholder="Masukkan kata sandi akun"
                 icon={<LockKeyhole className="size-4" />}
@@ -378,6 +383,17 @@ export function LoginPage() {
                 <span>{message}</span>
               </div>
             )}
+
+            {/* Box Penjelasan Registrasi Tertutup Instansi */}
+            <div className="mt-5 rounded-xl border border-[#173e32]/10 bg-[#f1f6ef] p-3.5 text-xs text-[#36564a] leading-relaxed">
+              <div className="flex items-center gap-2 font-bold text-[#173e32]">
+                <Building2 className="size-4 text-[#10b981]" />
+                <span>Pendaftaran Akun Terpusat (Sistem Tertutup)</span>
+              </div>
+              <p className="mt-1 text-[11px] text-[#557267]">
+                Pendaftaran akun operator tidak dibuka untuk publik. Seluruh akun didaftarkan langsung oleh Superadmin. Hubungi Superadmin instansi Anda jika membutuhkan hak akses baru.
+              </p>
+            </div>
 
             {/* Footer copyright */}
             <div className="mt-6 text-center text-[11px] text-[#557267]">
