@@ -194,18 +194,25 @@ export function RiskMapPreview() {
     const kritis = items.filter((item) => item.kategori === "tinggi").length;
     const waspada = items.filter((item) => item.kategori === "sedang").length;
     const normal = items.filter((item) => item.kategori === "rendah").length;
+    const unavailable = items.filter(
+      (item) =>
+        item.skor_risiko === null ||
+        item.kategori === "data tidak tersedia",
+    ).length;
     const scores = items
       .map((item) => item.skor_risiko)
       .filter((score): score is number => score !== null && Number.isFinite(score));
+    const totalScored = scores.length;
     return {
       items,
       kritis,
       waspada,
       normal,
+      unavailable,
       total: items.length,
-      totalScored: scores.length,
-      averageScore: scores.length
-        ? scores.reduce((sum, score) => sum + score, 0) / scores.length
+      totalScored,
+      averageScore: totalScored
+        ? scores.reduce((sum, score) => sum + score, 0) / totalScored
         : null,
       color:
         kritis > 0
@@ -229,18 +236,18 @@ export function RiskMapPreview() {
   const activeStats = getProvinceStats(activeProvince?.properties.name);
   const displayedStats = activeStats;
   const circumference = 239;
-  const greenArc = displayedStats.total
-    ? (displayedStats.normal / displayedStats.total) * circumference
+  const greenArc = displayedStats.totalScored
+    ? (displayedStats.normal / displayedStats.totalScored) * circumference
     : 0;
-  const yellowArc = displayedStats.total
-    ? (displayedStats.waspada / displayedStats.total) * circumference
+  const yellowArc = displayedStats.totalScored
+    ? (displayedStats.waspada / displayedStats.totalScored) * circumference
     : 0;
-  const redArc = displayedStats.total
-    ? (displayedStats.kritis / displayedStats.total) * circumference
+  const redArc = displayedStats.totalScored
+    ? (displayedStats.kritis / displayedStats.totalScored) * circumference
     : 0;
   const percentage = (count: number) =>
-    displayedStats.total
-      ? Math.round((count / displayedStats.total) * 100)
+    displayedStats.totalScored
+      ? Math.round((count / displayedStats.totalScored) * 100)
       : 0;
   const categoryExamples = (category: "tinggi" | "sedang" | "rendah") =>
     displayedStats.items
@@ -451,13 +458,21 @@ export function RiskMapPreview() {
           }
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           className={`relative w-full cursor-default overflow-hidden rounded-xl p-3.5 shadow-md sm:p-4 ${
-            activeStats.kritis > 0 ? "bg-[#9b1c1c]" : "bg-[#173e32]"
+            activeStats.kritis > 0
+              ? "bg-[#9b1c1c]"
+              : activeStats.waspada > 0
+                ? "bg-[#eab308]"
+                : activeStats.normal > 0
+                  ? "bg-[#173e32]"
+                  : "bg-slate-500"
           }`}
           style={{ minHeight: "142px" }}
         >
           {/* Wheat dekoratif — pojok kanan atas */}
           <Wheat
-            className="absolute -right-3 -top-3 size-20 rotate-[15deg] text-white/[0.06]"
+            className={`absolute -right-3 -top-3 size-20 rotate-[15deg] ${
+              activeStats.waspada > 0 ? "text-black/[0.06]" : "text-white/[0.06]"
+            }`}
             aria-hidden="true"
           />
 
@@ -466,14 +481,22 @@ export function RiskMapPreview() {
             {/* Baris atas: wilayah + badge status */}
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">
+                <p className={`text-[10px] font-bold uppercase tracking-widest ${
+                  activeStats.waspada > 0 ? "text-[#713f12]/70" : "text-white/50"
+                }`}>
                   {activeProvince
                     ? activeProvince.properties.name
                     : "Indonesia"}
                 </p>
                 <p
                   className={`text-xs font-semibold ${
-                    activeStats.kritis > 0 ? "text-[#fca5a5]" : "text-[#a3d9b1]"
+                    activeStats.kritis > 0
+                      ? "text-[#fca5a5]"
+                      : activeStats.waspada > 0
+                        ? "text-[#422006]"
+                        : activeStats.normal > 0
+                          ? "text-[#a3d9b1]"
+                          : "text-white/80"
                   }`}
                 >
                   Status risiko wilayah
@@ -482,8 +505,12 @@ export function RiskMapPreview() {
               <span
                 className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold ${
                   activeStats.kritis > 0
-                    ? "bg-white/20 text-white"
-                    : "bg-white/15 text-white/90"
+                    ? "bg-[#ef4444]/20 text-[#fecaca]"
+                    : activeStats.waspada > 0
+                      ? "bg-[#ca8a04] text-[#422006]"
+                      : activeStats.normal > 0
+                        ? "bg-[#22c55e]/20 text-[#bbf7d0]"
+                        : "bg-white/15 text-white/80"
                 }`}
               >
                 {activeStats.status}
@@ -493,12 +520,16 @@ export function RiskMapPreview() {
             {/* Ringkasan skor dan jumlah kategori dari risiko wilayah */}
             <div className="flex items-end justify-between gap-3 pt-2">
               <div>
-                <span className="font-mono text-3xl font-bold leading-none text-white tabular-nums sm:text-4xl">
+                <span className={`font-mono text-3xl font-bold leading-none tabular-nums sm:text-4xl ${
+                  activeStats.waspada > 0 ? "text-[#422006]" : "text-white"
+                }`}>
                   {activeStats.averageScore === null
                     ? "—"
                     : Math.round(activeStats.averageScore)}
                 </span>
-                <p className="mt-0.5 text-[10px] font-medium text-white/50">
+                <p className={`mt-0.5 text-[10px] font-medium ${
+                  activeStats.waspada > 0 ? "text-[#713f12]/80" : "text-white/50"
+                }`}>
                   Skor risiko rata-rata / 100
                 </p>
               </div>
@@ -506,22 +537,32 @@ export function RiskMapPreview() {
               {/* Metrik samping */}
               <div className="flex items-end gap-3 text-right">
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-white/40">
+                  <p className={`text-[9px] uppercase tracking-wider ${
+                    activeStats.waspada > 0 ? "text-[#713f12]/70" : "text-white/40"
+                  }`}>
                     Kritis
                   </p>
                   <p
                     className={`font-mono text-xs font-bold leading-tight sm:text-sm ${
-                      activeStats.kritis > 0 ? "text-[#fca5a5]" : "text-[#a3d9b1]"
+                      activeStats.kritis > 0
+                        ? "text-[#fca5a5]"
+                        : activeStats.waspada > 0
+                          ? "text-[#713f12]"
+                          : "text-[#a3d9b1]"
                     }`}
                   >
                     {activeStats.kritis}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-white/40">
+                  <p className={`text-[9px] uppercase tracking-wider ${
+                    activeStats.waspada > 0 ? "text-[#713f12]/70" : "text-white/40"
+                  }`}>
                     Data
                   </p>
-                  <p className="font-mono text-xs font-bold leading-tight text-white/90 sm:text-sm">
+                  <p className={`font-mono text-xs font-bold leading-tight sm:text-sm ${
+                    activeStats.waspada > 0 ? "text-[#422006]" : "text-white/90"
+                  }`}>
                     {activeStats.totalScored}/{activeStats.total}
                   </p>
                 </div>
@@ -657,7 +698,7 @@ export function RiskMapPreview() {
               {snapshotDate ? `Snapshot ${snapshotDate}` : "Snapshot risiko tidak tersedia"}
             </span>
             <span className="font-mono text-[#173e32] font-medium">
-              {displayedStats.totalScored} wilayah berdata
+              {displayedStats.totalScored} berdata · {displayedStats.unavailable} tanpa skor
             </span>
           </div>
         </motion.div>

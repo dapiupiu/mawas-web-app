@@ -11,12 +11,31 @@ const getPredictionRows = (payload) => {
 
 const normalizeScore = (score) => {
   if (score === null || score === undefined || score === '') return null;
-  let parsed = Number(score);
+  const parsed = Number(score);
   if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
-    throw new Error(`Skor risiko tidak valid: ${score}. Nilai harus berada pada rentang 0-1 atau 0-100.`);
+    throw new Error(`Skor risiko tidak valid: ${score}. Output ML harus berada pada rentang 0-100.`);
   }
-  if (parsed > 1) parsed /= 100;
+  return parsed / 100;
+};
+
+const nullableNumber = (value, field, code, { minimum = -Infinity, maximum = Infinity, integer = false } = {}) => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  if (
+    !Number.isFinite(parsed) ||
+    parsed < minimum ||
+    parsed > maximum ||
+    (integer && !Number.isInteger(parsed))
+  ) {
+    throw new Error(`Nilai ${field} tidak valid untuk kabupaten ${code}.`);
+  }
   return parsed;
+};
+
+const isValidDate = (value) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 };
 
 const normalizePredictions = (payload) => {
@@ -46,17 +65,39 @@ const normalizePredictions = (payload) => {
     if (!Number.isInteger(horizon) || horizon <= 0) {
       throw new Error(`Horizon prediksi tidak valid untuk kabupaten ${code}.`);
     }
+    if (typeof date !== 'string' || !isValidDate(date)) {
+      throw new Error(`Tanggal prediksi tidak valid untuk kabupaten ${code}.`);
+    }
     seenCodes.add(code);
 
     const score = normalizeScore(item.skor_risiko);
+    const sourceCategory = String(item.kategori || '').toLowerCase().trim();
+    if (
+      ![
+        'rendah',
+        'normal',
+        'aman',
+        'sedang',
+        'waspada',
+        'tinggi',
+        'kritis',
+        'data tidak tersedia',
+        'tidak_tersedia',
+      ].includes(sourceCategory)
+    ) {
+      throw new Error(`Kategori risiko tidak dikenal untuk kabupaten ${code}: ${item.kategori}.`);
+    }
     const factors = item.faktor_penyebab;
+    const feId = item.id_fe === null || item.id_fe === undefined
+      ? null
+      : String(item.id_fe).trim() || null;
 
     return {
       kabupaten: {
         kode_kabupaten: code,
         nama_kabupaten: name,
         provinsi: province,
-        ...(item?.id_fe ? { id_fe: String(item.id_fe).trim() } : {}),
+        id_fe: feId,
       },
       risiko: {
         kode_kabupaten: code,
@@ -69,10 +110,30 @@ const normalizePredictions = (payload) => {
         faktor_penyebab: Array.isArray(factors)
           ? factors.filter(Boolean).join('; ')
           : factors
-            ? String(factors)
-            : '',
+            ? String(factors).trim()
+            : null,
         dihasilkan_pada: item.dihasilkan_pada || generatedAt,
         status_data: item.status_data || payload?.status_data || 'model',
+        punya_data_cuaca: typeof item.punya_data_cuaca === 'boolean'
+          ? item.punya_data_cuaca
+          : null,
+        frac_valid: nullableNumber(item.frac_valid, 'frac_valid', code, {
+          minimum: 0,
+          maximum: 1,
+        }),
+        n_valid: nullableNumber(item.n_valid, 'n_valid', code, {
+          minimum: 0,
+          integer: true,
+        }),
+        n_piksel: nullableNumber(item.n_piksel, 'n_piksel', code, {
+          minimum: 0,
+          integer: true,
+        }),
+        rfq: nullableNumber(item.rfq, 'rfq', code, { minimum: 0 }),
+        r1q: nullableNumber(item.r1q, 'r1q', code, { minimum: 0 }),
+        r3q: nullableNumber(item.r3q, 'r3q', code, { minimum: 0 }),
+        alasan_vegetasi_kosong: item.alasan_vegetasi_kosong || null,
+        alasan_cuaca_kosong: item.alasan_cuaca_kosong || null,
       },
     };
   });
@@ -90,76 +151,13 @@ const upsertBatches = async (supabase, table, rows, onConflict) => {
   }
 };
 
-const insertBatches = async (supabase, table, rows) => {
-  for (let offset = 0; offset < rows.length; offset += BATCH_SIZE) {
-    const batch = rows.slice(offset, offset + BATCH_SIZE);
-    const { error } = await supabase.from(table).insert(batch);
-    if (error) {
-      throw new Error(`Gagal menambahkan data ke tabel ${table}: ${error.message}`);
-    }
-  }
-};
-
-const makeRiskKey = (row) =>
-  `${row.kode_kabupaten}|${row.tanggal}|${Number(row.horizon_hari) || 30}`;
-
 const upsertRiskRows = async (supabase, rows) => {
-  const codes = Array.from(new Set(rows.map((row) => row.kode_kabupaten)));
-  const existingByKey = new Map();
-
-  for (let offset = 0; offset < codes.length; offset += BATCH_SIZE) {
-    const codeBatch = codes.slice(offset, offset + BATCH_SIZE);
-    let page = 0;
-
-    while (true) {
-      const { data, error } = await supabase
-        .from('risiko_wilayah')
-        .select('id,kode_kabupaten,tanggal,horizon_hari')
-        .in('kode_kabupaten', codeBatch)
-        .range(page * 1000, (page + 1) * 1000 - 1);
-
-      if (error) throw new Error(`Gagal membaca tabel risiko_wilayah: ${error.message}`);
-
-      for (const existing of data || []) {
-        const key = makeRiskKey(existing);
-        const matches = existingByKey.get(key) || [];
-        matches.push(existing.id);
-        existingByKey.set(key, matches);
-      }
-
-      if (!data || data.length < 1000) break;
-      page += 1;
-    }
-  }
-
-  const inserts = [];
-  const updates = [];
-  for (const row of rows) {
-    const ids = existingByKey.get(makeRiskKey(row));
-    if (!ids || ids.length === 0) {
-      inserts.push(row);
-    } else {
-      for (const id of ids) updates.push({ id, row });
-    }
-  }
-
-  for (let offset = 0; offset < updates.length; offset += 25) {
-    const batch = updates.slice(offset, offset + 25);
-    const results = await Promise.all(
-      batch.map(({ id, row }) =>
-        supabase
-          .from('risiko_wilayah')
-          .update(row)
-          .eq('id', id)
-      )
-    );
-    const failed = results.find((result) => result.error);
-    if (failed) {
-      throw new Error(`Gagal memperbarui tabel risiko_wilayah: ${failed.error.message}`);
-    }
-  }
-
-  await insertBatches(supabase, 'risiko_wilayah', inserts);
+  await upsertBatches(
+    supabase,
+    'risiko_wilayah',
+    rows,
+    'kode_kabupaten,tanggal,horizon_hari'
+  );
 };
 
 const importPredictions = async (supabase, payload) => {

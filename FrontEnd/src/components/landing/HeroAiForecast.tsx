@@ -288,8 +288,9 @@ export function HeroAiForecast() {
                     <span className="font-mono font-bold text-[#173e32]">
                       {trend.rata_rata_skor.toFixed(2)}
                     </span>{" "}
-                    pada {trend.total_wilayah} kabupaten/kota. Grafik menampilkan
-                    tanggal snapshot yang benar-benar tersedia.
+                    dari {trend.wilayah_dengan_skor} wilayah berskor.{" "}
+                    {trend.wilayah_tanpa_skor} wilayah tanpa skor tidak dihitung
+                    sebagai risiko normal; grafik memakai tanggal snapshot yang tersedia.
                   </p>
                 )}
               </div>
@@ -298,10 +299,11 @@ export function HeroAiForecast() {
             {/* Quick stats badges di dalam box */}
             <div className="mt-2.5 flex items-center justify-between border-t border-[#173e32]/8 pt-2 text-[10.5px]">
               <span className="font-medium text-[#173e32]">
-                Wilayah terdata:{" "}
+                Wilayah pada snapshot:{" "}
                 <strong className="font-mono font-bold">
                   {trend?.total_wilayah ?? 0}
                 </strong>
+                {trend && ` · ${trend.wilayah_tanpa_skor} tanpa skor`}
               </span>
               <span className="rounded bg-[#b97a16]/12 px-2 py-0.5 font-medium text-[#8a6000]">
                 {peakPoint

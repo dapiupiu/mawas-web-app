@@ -21,6 +21,7 @@ const joinKabupaten = (risks, kabupatenRows) => {
       ...risk,
       nama_kabupaten: risk.nama_kabupaten || kabupaten.nama_kabupaten,
       provinsi: risk.provinsi || kabupaten.provinsi,
+      id_fe: risk.id_fe || kabupaten.id_fe,
       kabupaten,
     };
   });
@@ -30,7 +31,7 @@ exports.seedRisikoData = async (req, res) => {
   try {
     const filePath = path.resolve(
       __dirname,
-      '../../FrontEnd/public/data/risiko_kabupaten_terbaru.json'
+      '../../ml-service/output_model/risiko_kabupaten_terbaru.json'
     );
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'File risiko_kabupaten_terbaru.json tidak ditemukan.' });
@@ -139,19 +140,16 @@ exports.getDashboardSummary = async (req, res) => {
     const [
       { data: riskRows, error: riskError },
       { data: verificationRows, error: verificationError },
-      { data: interventionRows, error: interventionError },
     ] = await Promise.all([
       supabase
         .from('risiko_wilayah')
         .select('kode_kabupaten,kategori')
         .order('tanggal', { ascending: false }),
       supabase.from('verifikasi_risiko').select('status_verifikasi'),
-      supabase.from('intervensi_mitigasi').select('status'),
     ]);
 
     if (riskError) throw riskError;
     if (verificationError) throw verificationError;
-    if (interventionError) throw interventionError;
 
     const latestCategoryByCode = new Map();
     for (const row of riskRows || []) {
@@ -170,9 +168,7 @@ exports.getDashboardSummary = async (req, res) => {
         wilayah_pantauan: categories.length,
         kategori_kritis: categories.filter((value) => mapRiskCategory(value) === 'kritis').length,
         menunggu_verifikasi: statuses.filter((value) => value === 'menunggu').length,
-        intervensi_berjalan: (interventionRows || []).filter(
-          (item) => item.status === 'Sedang Berjalan'
-        ).length,
+        intervensi_berjalan: 0,
       },
     });
   } catch (err) {
@@ -253,20 +249,27 @@ exports.getTrenNasional = async (req, res) => {
 
     const rowsByDate = new Map();
     for (const row of snapshotByCodeAndDate.values()) {
+      const dateStats = rowsByDate.get(row.tanggal) || { scores: [], withoutScore: 0 };
       const score = row.skor_risiko === null ? null : Number(row.skor_risiko);
-      if (score === null || !Number.isFinite(score)) continue;
-      const values = rowsByDate.get(row.tanggal) || [];
-      values.push(score);
-      rowsByDate.set(row.tanggal, values);
+      if (score === null || !Number.isFinite(score)) {
+        dateStats.withoutScore += 1;
+      } else {
+        dateStats.scores.push(score);
+      }
+      rowsByDate.set(row.tanggal, dateStats);
     }
     const trend = Array.from(rowsByDate.entries())
       .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
       .slice(-8)
-      .map(([tanggal, scores]) => ({
-        tanggal,
-        skor: Number((scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(4)),
-        jumlah_wilayah: scores.length,
-      }));
+      .flatMap(([tanggal, { scores, withoutScore }]) => {
+        if (scores.length === 0) return [];
+        return [{
+          tanggal,
+          skor: Number((scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(4)),
+          jumlah_wilayah: scores.length,
+          jumlah_tanpa_skor: withoutScore,
+        }];
+      });
     const validScores = currentRows
       .map((row) => row.skor_risiko === null ? null : Number(row.skor_risiko))
       .filter((score) => score !== null && Number.isFinite(score));
@@ -283,6 +286,8 @@ exports.getTrenNasional = async (req, res) => {
           null
         ),
         total_wilayah: currentRows.length,
+        wilayah_dengan_skor: validScores.length,
+        wilayah_tanpa_skor: currentRows.length - validScores.length,
         rata_rata_skor: average,
         distribusi: distribution,
         trend,

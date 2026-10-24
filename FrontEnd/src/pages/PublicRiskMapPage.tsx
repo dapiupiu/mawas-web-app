@@ -110,31 +110,7 @@ export function PublicRiskMapPage() {
   const [selectedDate, setSelectedDate] = useState("");
   const [aiAnalysis, setAiAnalysis] = useState<AnalisisAIResponse | null>(null);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
-
-  // Stepper function to advance or rewind date by days
-  const changeDate = (days: number) => {
-    try {
-      const baseDate = selectedDate || latestRiskDate;
-      const parts = baseDate.split("-").map(Number);
-      if (parts.length === 3) {
-        const d = new Date(parts[0], parts[1] - 1, parts[2]);
-        d.setDate(d.getDate() + days);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
-        const nextDate = `${yyyy}-${mm}-${dd}`;
-        setSelectedDate(
-          minRiskDate && nextDate < minRiskDate
-            ? minRiskDate
-            : maxRiskDate && nextDate > maxRiskDate
-              ? maxRiskDate
-              : nextDate,
-        );
-      }
-    } catch {
-      // ignore
-    }
-  };
+  const [aiAnalysisError, setAiAnalysisError] = useState("");
 
   // Gesture and view transforms
   const [zoom, setZoom] = useState(1);
@@ -226,15 +202,24 @@ export function PublicRiskMapPage() {
 
   const riskDates = useMemo(
     () =>
-      riskItems
-        .map((item) => item.tanggal)
-        .filter((date): date is string => Boolean(date))
-        .sort(),
+      Array.from(
+        new Set(
+          riskItems
+            .map((item) => item.tanggal)
+            .filter((date): date is string => Boolean(date)),
+        ),
+      ).sort(),
     [riskItems],
   );
   const minRiskDate = riskDates[0] || "";
   const maxRiskDate = riskDates[riskDates.length - 1] || "";
   const latestRiskDate = maxRiskDate;
+  const changeDate = (direction: -1 | 1) => {
+    const selectedSnapshot = riskDates.filter((date) => date <= (selectedDate || latestRiskDate)).at(-1);
+    const currentIndex = selectedSnapshot ? riskDates.indexOf(selectedSnapshot) : 0;
+    const nextDate = riskDates[currentIndex + direction];
+    if (nextDate) setSelectedDate(nextDate);
+  };
   const risksForSelectedDate = useMemo(
     () =>
       latestRisikoPerKabupaten(
@@ -303,6 +288,7 @@ export function PublicRiskMapPage() {
         tinggi: 0,
         sedang: 0,
         rendah: 0,
+        tidakTersedia: 0,
       };
     }
     const tinggi = items.filter(
@@ -327,17 +313,21 @@ export function PublicRiskMapPage() {
       status = "Kritis";
     } else if (sedang > 0) {
       color = "#eab308"; // Kuning Terang (Warning)
-      status = "Warning";
+      status = "Waspada";
     } else if (rendah === 0) {
       color = "#94a3b8";
       status = "Data tidak tersedia";
+    }
+    if (items.length > 0 && kosong > 0 && (tinggi > 0 || sedang > 0 || rendah > 0)) {
+      status += " (data tidak lengkap)";
     }
     return {
       color,
       status,
       tinggi,
       sedang,
-      rendah: rendah + kosong,
+      rendah,
+      tidakTersedia: kosong,
       total: items.length,
     };
   };
@@ -561,25 +551,29 @@ export function PublicRiskMapPage() {
   useEffect(() => {
     if (!selectedKabupatenFeature) {
       setAiAnalysis(null);
+      setAiAnalysisError("");
       return;
     }
     const risk = getKabupatenRisk(selectedKabupatenFeature);
     setIsLoadingAI(true);
+    setAiAnalysisError("");
     const id =
       risk?.kode_kabupaten ||
       selectedKabupatenFeature.properties.id ||
       selectedKabupatenFeature.properties.kab_name;
 
     risikoApi
-      .getAnalisisAI(id, risk || undefined)
+      .getAnalisisAI(id, risk?.tanggal)
       .then((res) => {
         setAiAnalysis(res);
         setIsLoadingAI(false);
       })
       .catch(() => {
+        setAiAnalysis(null);
+        setAiAnalysisError("Analisis belum tersedia. Silakan coba lagi.");
         setIsLoadingAI(false);
       });
-  }, [selectedKabupatenFeature, riskByFeId]);
+  }, [selectedKabupatenFeature, riskByFeId, selectedDate]);
 
   // Form submit
   const handleFilterSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -763,9 +757,10 @@ export function PublicRiskMapPage() {
           <button
             type="button"
             onClick={() => changeDate(-1)}
-            className="inline-flex min-h-9 size-9 items-center justify-center rounded text-[#36564a] hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16] transition-colors"
+            disabled={riskDates.length <= 1 || selectedDate <= minRiskDate}
+            className="inline-flex min-h-9 size-9 items-center justify-center rounded text-[#36564a] hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Tanggal sebelumnya"
-            title="Maju 1 hari sebelumnya"
+            title={riskDates.length <= 1 ? "Hanya tersedia satu tanggal snapshot" : "Snapshot sebelumnya"}
           >
             <ChevronLeft className="size-4" />
           </button>
@@ -779,17 +774,24 @@ export function PublicRiskMapPage() {
               value={selectedDate}
               min={minRiskDate || undefined}
               max={maxRiskDate || undefined}
+              disabled={riskDates.length <= 1}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent text-xs font-bold text-[#173e32] cursor-pointer focus:outline-none"
-              title="Pilih tanggal rujukan model"
+              className="bg-transparent text-xs font-bold text-[#173e32] cursor-pointer focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
+              title={riskDates.length <= 1 ? "Filter tanggal hanya tersedia jika ada beberapa snapshot" : "Pilih tanggal snapshot"}
             />
+            {riskDates.length === 1 && (
+              <span className="hidden text-[10px] font-medium text-[#557267] sm:inline">
+                1 snapshot
+              </span>
+            )}
           </div>
           <button
             type="button"
             onClick={() => changeDate(1)}
-            className="inline-flex min-h-9 size-9 items-center justify-center rounded text-[#36564a] hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16] transition-colors"
+            disabled={riskDates.length <= 1 || selectedDate >= maxRiskDate}
+            className="inline-flex min-h-9 size-9 items-center justify-center rounded text-[#36564a] hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Tanggal berikutnya"
-            title="Maju 1 hari berikutnya"
+            title={riskDates.length <= 1 ? "Hanya tersedia satu tanggal snapshot" : "Snapshot berikutnya"}
           >
             <ChevronRight className="size-4" />
           </button>
@@ -964,7 +966,7 @@ export function PublicRiskMapPage() {
                         role="button"
                         tabIndex={0}
                         aria-pressed={isSelected}
-                        aria-label={`Provinsi ${props.name}. Status: ${provRisk.status} (${provRisk.tinggi} tinggi, ${provRisk.sedang} sedang, ${provRisk.rendah} rendah).`}
+                        aria-label={`Provinsi ${props.name}. Status: ${provRisk.status} (${provRisk.tinggi} kritis, ${provRisk.sedang} waspada, ${provRisk.rendah} normal, ${provRisk.tidakTersedia} tanpa skor).`}
                         onClick={() => selectProvince(props.name, false)}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" || event.key === " ") {
@@ -1500,34 +1502,49 @@ export function PublicRiskMapPage() {
                             Menyiapkan analisis risiko...
                           </span>
                         </div>
+                      ) : aiAnalysisError ? (
+                        <p className="text-xs text-[#557267]">{aiAnalysisError}</p>
                       ) : aiAnalysis?.analisis_ai ? (
                         <div className="space-y-2.5">
                           <p className="text-xs leading-relaxed text-[#234538]">
                             {aiAnalysis.analisis_ai.penjelasan}
                           </p>
-                          <div className="rounded-lg bg-white/90 p-2.5 border border-[#173e32]/10">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-[#173e32]">
-                              Langkah Rekomendasi Mitigasi:
-                            </p>
-                            <ul className="mt-1.5 space-y-1.5">
-                              {(Array.isArray(
-                                aiAnalysis.analisis_ai.rekomendasi,
-                              )
-                                ? aiAnalysis.analisis_ai.rekomendasi
-                                : [aiAnalysis.analisis_ai.rekomendasi]
-                              ).map((rec, i) => (
-                                <li
-                                  key={i}
-                                  className="flex items-start gap-1.5 text-xs text-[#36564a]"
-                                >
-                                  <span className="grid size-4 shrink-0 place-items-center rounded-full bg-[#173e32]/10 text-[10px] font-bold text-[#173e32] mt-0.5">
-                                    {i + 1}
-                                  </span>
-                                  <span>{rec}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
+                          <p className="text-[10px] leading-relaxed text-[#557267]">
+                            Kondisi per{" "}
+                            {new Date(`${aiAnalysis.tanggal}T00:00:00`).toLocaleDateString(
+                              "id-ID",
+                              { day: "numeric", month: "long", year: "numeric" },
+                            )}{" "}
+                            (bukan real-time). Skor adalah peringkat relatif, bukan prakiraan absolut;
+                            data hujan masih prelim dan 41 kabupaten tidak memiliki data cuaca.
+                            Urutan risiko bersifat indikatif dan model belum mengungguli aturan sederhana;
+                            verifikasi lapangan tetap diperlukan.
+                          </p>
+                          {aiAnalysis.analisis_ai.rekomendasi.length > 0 && (
+                            <div className="rounded-lg bg-white/90 p-2.5 border border-[#173e32]/10">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-[#173e32]">
+                                Langkah Rekomendasi Mitigasi:
+                              </p>
+                              <ul className="mt-1.5 space-y-1.5">
+                                {(Array.isArray(
+                                  aiAnalysis.analisis_ai.rekomendasi,
+                                )
+                                  ? aiAnalysis.analisis_ai.rekomendasi
+                                  : [aiAnalysis.analisis_ai.rekomendasi]
+                                ).map((rec, i) => (
+                                  <li
+                                    key={i}
+                                    className="flex items-start gap-1.5 text-xs text-[#36564a]"
+                                  >
+                                    <span className="grid size-4 shrink-0 place-items-center rounded-full bg-[#173e32]/10 text-[10px] font-bold text-[#173e32] mt-0.5">
+                                      {i + 1}
+                                    </span>
+                                    <span>{rec}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <p className="text-xs text-[#557267]">
@@ -1546,10 +1563,16 @@ export function PublicRiskMapPage() {
                             const id =
                               risk?.kode_kabupaten ||
                               selectedKabupatenFeature.properties.id;
+                            setAiAnalysisError("");
                             risikoApi
-                              .getAnalisisAI(id, risk || undefined)
+                              .getAnalisisAI(id, risk?.tanggal)
                               .then((res) => {
                                 setAiAnalysis(res);
+                                setIsLoadingAI(false);
+                              })
+                              .catch(() => {
+                                setAiAnalysis(null);
+                                setAiAnalysisError("Analisis belum tersedia. Silakan coba lagi.");
                                 setIsLoadingAI(false);
                               });
                           }}
@@ -1573,6 +1596,8 @@ export function PublicRiskMapPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#173e32]/5 p-2.5 border border-[#173e32]/10">
                     <span className="text-[11px] font-medium text-[#557267]">
                       {provRisk.total} Kabupaten/Kota tercakup
+                      {provRisk.tidakTersedia > 0 &&
+                        ` · ${provRisk.tidakTersedia} tanpa skor`}
                     </span>
                     <span className="text-xs font-semibold text-[#173e32]">
                       Status: {provRisk.status}

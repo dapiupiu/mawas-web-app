@@ -8,6 +8,10 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// 0. Route GenAI (Proxy Groq)
+const genaiRoutes = require('./routes/genaiRoutes');
+app.use('/api/genai', genaiRoutes);
+
 // 1. Route Auth
 const authRoutes = require('./routes/authRoutes');
 app.use('/api/auth', authRoutes);

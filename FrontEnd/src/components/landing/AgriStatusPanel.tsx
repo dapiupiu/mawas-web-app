@@ -12,28 +12,28 @@ export interface AgriStatusPanelProps {
 
 const CATEGORY_CONFIG = {
   tinggi: {
-    label: "Merah: Kritis",
+    label: "Kritis",
     badgeBg: "bg-[#ef4444]/15 text-[#991b1b] border border-[#ef4444]/30",
     dot: "bg-[#ef4444]",
     bar: "bg-[#ef4444]",
   },
   sedang: {
-    label: "Kuning: Warning",
+    label: "Waspada",
     badgeBg: "bg-[#eab308]/20 text-[#854d0e] border border-[#eab308]/40",
     dot: "bg-[#eab308]",
     bar: "bg-[#eab308]",
   },
   rendah: {
-    label: "Hijau: Normal",
+    label: "Normal",
     badgeBg: "bg-[#22c55e]/15 text-[#166534] border border-[#22c55e]/30",
     dot: "bg-[#22c55e]",
     bar: "bg-[#22c55e]",
   },
   "data tidak tersedia": {
-    label: "Hijau: Normal (Pemantauan)",
-    badgeBg: "bg-[#22c55e]/15 text-[#166534] border border-[#22c55e]/30",
-    dot: "bg-[#22c55e]",
-    bar: "bg-[#22c55e]",
+    label: "Data tidak tersedia",
+    badgeBg: "bg-slate-200/70 text-slate-700 border border-slate-300",
+    dot: "bg-slate-400",
+    bar: "bg-slate-400",
   },
 } as const;
 
@@ -181,15 +181,19 @@ export function AgriStatusPanel({ selectedProvince: propProvince }: AgriStatusPa
             <div className="flex flex-wrap items-center gap-2.5 text-xs">
               <div className="flex items-center gap-1.5 rounded-md border border-[#ef4444]/30 bg-[#ef4444]/10 px-3 py-1.5 font-semibold text-[#991b1b]">
                 <span className="size-2 rounded-full bg-[#ef4444]" />
-                <span>{summaryCounts.tinggi} Merah (Kritis)</span>
+                <span>{summaryCounts.tinggi} Kritis</span>
               </div>
               <div className="flex items-center gap-1.5 rounded-md border border-[#eab308]/40 bg-[#eab308]/15 px-3 py-1.5 font-semibold text-[#854d0e]">
                 <span className="size-2 rounded-full bg-[#eab308]" />
-                <span>{summaryCounts.sedang} Kuning (Warning)</span>
+                <span>{summaryCounts.sedang} Waspada</span>
               </div>
               <div className="flex items-center gap-1.5 rounded-md border border-[#22c55e]/30 bg-[#22c55e]/10 px-3 py-1.5 font-semibold text-[#166534]">
                 <span className="size-2 rounded-full bg-[#22c55e]" />
-                <span>{summaryCounts.rendah + summaryCounts.tidakTersedia} Hijau (Normal)</span>
+                <span>{summaryCounts.rendah} Normal</span>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-md border border-slate-300 bg-slate-100 px-3 py-1.5 font-semibold text-slate-700">
+                <span className="size-2 rounded-full bg-slate-400" />
+                <span>{summaryCounts.tidakTersedia} Data tidak tersedia</span>
               </div>
             </div>
           </div>
@@ -231,7 +235,12 @@ export function AgriStatusPanel({ selectedProvince: propProvince }: AgriStatusPa
                     const rawFaktor = item.faktor_penyebab;
                     const faktorText = Array.isArray(rawFaktor)
                       ? rawFaktor.join(", ")
-                      : rawFaktor || (item.skor_risiko === null ? "Data satelit vegetasi pada periode ini terlalu sedikit (awan/tutupan)" : "Kondisi vegetasi normal");
+                      : rawFaktor ||
+                        item.alasan_vegetasi_kosong ||
+                        item.alasan_cuaca_kosong ||
+                        (item.skor_risiko === null
+                          ? "Data risiko tidak tersedia untuk wilayah ini."
+                          : "Kondisi vegetasi normal");
 
                     const hasWeather = item.punya_data_cuaca === true;
 

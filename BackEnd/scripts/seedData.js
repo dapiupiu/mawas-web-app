@@ -16,7 +16,7 @@ if (!supabaseUrl || !supabaseKey) {
 
 const filePath = path.resolve(
   __dirname,
-  '../../FrontEnd/public/data/risiko_kabupaten_terbaru.json'
+  '../../ml-service/output_model/risiko_kabupaten_terbaru.json'
 );
 
 const seed = async () => {
@@ -25,10 +25,38 @@ const seed = async () => {
   }
 
   const payload = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  if (!Array.isArray(payload?.data) || payload.data.length !== 514) {
+    throw new Error('Seeder dibatalkan: file sumber harus memuat 514 prediksi kabupaten.');
+  }
+  if (new Set(payload.data.map((item) => item?.kode_kabupaten)).size !== 514) {
+    throw new Error('Seeder dibatalkan: kode kabupaten dalam file sumber tidak unik.');
+  }
+
   const supabase = createClient(supabaseUrl, supabaseKey);
+  const schemaChecks = await Promise.all([
+    supabase
+      .from('kabupaten')
+      .select('kode_kabupaten,nama_kabupaten,provinsi,id_fe')
+      .limit(0),
+    supabase
+      .from('risiko_wilayah')
+      .select(
+        'kode_kabupaten,tanggal,horizon_hari,skor_risiko,kategori,faktor_penyebab,punya_data_cuaca,frac_valid,n_valid,n_piksel,rfq,r1q,r3q,alasan_vegetasi_kosong,alasan_cuaca_kosong'
+      )
+      .limit(0),
+    supabase
+      .from('verifikasi_risiko')
+      .select('kode_kabupaten,tanggal,horizon_hari,status_verifikasi')
+      .limit(0),
+  ]);
+  const schemaError = schemaChecks.find((check) => check.error)?.error;
+  if (schemaError) {
+    throw new Error(`Skema Supabase belum sesuai; tidak ada data yang ditulis: ${schemaError.message}`);
+  }
+
   const result = await importPredictions(supabase, payload);
 
-  console.log(`Seeder selesai: ${result.total} prediksi berhasil di-upsert.`);
+  console.log(`Seeder selesai: ${result.total} prediksi berhasil di-upsert dari output ML terbaru.`);
   console.log(`Tanggal acuan: ${result.metadata.tanggalAcuan}; horizon: ${result.metadata.horizonHari} hari.`);
 };
 
