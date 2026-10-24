@@ -14,10 +14,9 @@ import { ProvinceSearchInput } from "@/components/landing/ProvinceSearchInput";
 
 const navigation = [
   { label: "Peta risiko", href: "/peta-risiko", route: true },
-  { label: "Pilar pangan", href: "#pilar-pangan", route: false },
-  { label: "Metrik FAPAR", href: "#metrik-fapar", route: false },
+  { label: "Status wilayah", href: "#status-wilayah", route: false },
+  { label: "Artikel", href: "#artikel", route: false },
   { label: "Cara kerja", href: "#cara-kerja", route: false },
-  { label: "Intervensi", href: "#intervensi", route: false },
   { label: "FAQ", href: "#pertanyaan", route: false },
 ];
 
@@ -114,6 +113,9 @@ export function SiteHeader() {
               </>
             );
 
+            const hashHref =
+              location.pathname === "/" ? item.href : `/${item.href}`;
+
             return item.route ? (
               <Link
                 key={item.href}
@@ -127,7 +129,7 @@ export function SiteHeader() {
             ) : (
               <a
                 key={item.href}
-                href={item.href}
+                href={hashHref}
                 onClick={closeMenu}
                 className={className}
               >
@@ -267,7 +269,11 @@ export function SiteHeader() {
                       </Link>
                     ) : (
                       <a
-                        href={item.href}
+                        href={
+                          location.pathname === "/"
+                            ? item.href
+                            : `/${item.href}`
+                        }
                         onClick={closeMenu}
                         className={linkClass}
                       >

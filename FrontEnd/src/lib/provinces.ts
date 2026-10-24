@@ -48,6 +48,7 @@ function normalizeProvName(name: string): string {
     .trim();
 }
 
+/** Exact / alias identity match for selected province names vs data. */
 export function matchProvince(query: string, target: string): boolean {
   const q = normalizeProvName(query);
   const t = normalizeProvName(target);
@@ -98,4 +99,44 @@ export function matchProvince(query: string, target: string): boolean {
   if (q === "maluku" && t !== "maluku") return false;
 
   return false;
+}
+
+/**
+ * Partial search for typeahead suggestions.
+ * "kali" → Kalimantan Barat/Selatan/Tengah/Timur/Utara; "jawa" → Jawa Barat/Tengah/Timur.
+ */
+export function searchProvinces(
+  query: string,
+  provinces: readonly string[] = INDONESIA_PROVINCES,
+): string[] {
+  const q = normalizeProvName(query);
+  if (!q) return [...provinces];
+
+  const tokens = q.split(/\s+/).filter(Boolean);
+
+  return provinces.filter((prov) => {
+    const t = normalizeProvName(prov);
+
+    // Full query as substring: "kali" → kalimantan…
+    if (t.includes(q)) return true;
+
+    // Multi-word: every token must appear ("kal teng" → kalimantan tengah)
+    if (tokens.length > 1 && tokens.every((token) => t.includes(token))) {
+      return true;
+    }
+
+    // Common aliases while typing
+    if (
+      (q === "diy" || q.startsWith("yogya")) &&
+      t.includes("yogyakarta")
+    ) {
+      return true;
+    }
+    if ((q === "dki" || q.startsWith("jakar")) && t.includes("jakarta")) {
+      return true;
+    }
+    if (q.startsWith("bangka") && t.includes("bangka")) return true;
+
+    return false;
+  });
 }

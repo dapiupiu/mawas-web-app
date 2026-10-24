@@ -21,6 +21,7 @@ const blankDraft = {
   isi: "",
   kategori: "Panduan Mitigasi",
   thumbnailUrl: "",
+  penulis: "Admin",
 };
 
 export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
@@ -58,6 +59,7 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
               isi: draft.isi.trim(),
               kategori: draft.kategori.trim(),
               thumbnailUrl: draft.thumbnailUrl.trim() || undefined,
+              penulis: draft.penulis.trim() || "Admin",
               diperbaruiPada: updatedDate,
             }
           : item
@@ -70,6 +72,7 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
         isi: draft.isi.trim(),
         kategori: draft.kategori.trim() || "Panduan Mitigasi",
         thumbnailUrl: draft.thumbnailUrl.trim() || undefined,
+        penulis: draft.penulis.trim() || "Admin",
         diperbaruiPada: updatedDate,
       };
       onChange([newArticle, ...articles]);
@@ -84,6 +87,7 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
       isi: article.isi,
       kategori: article.kategori,
       thumbnailUrl: article.thumbnailUrl || "",
+      penulis: article.penulis || "Admin",
     });
     setEditingId(article.id);
     setEditorOpen(true);
@@ -290,8 +294,25 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
               </div>
 
               <div>
+                <label htmlFor="art-author" className="text-xs font-bold text-[#173e32]">
+                  Penulis
+                </label>
+                <input
+                  id="art-author"
+                  type="text"
+                  value={draft.penulis}
+                  onChange={(e) => setDraft({ ...draft, penulis: e.target.value })}
+                  placeholder="Admin"
+                  className="mt-1.5 min-h-11 w-full rounded-lg border border-[#173e32]/20 bg-white px-3 text-xs sm:text-sm text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#10b981]"
+                />
+                <p className="mt-1 text-[11px] text-[#557267]">
+                  Kosongkan untuk memakai nama default Admin.
+                </p>
+              </div>
+
+              <div>
                 <label htmlFor="art-thumb" className="text-xs font-bold text-[#173e32]">
-                  URL Gambar / Thumbnail (Opsional)
+                  URL Gambar Berita (Opsional)
                 </label>
                 <input
                   id="art-thumb"
@@ -301,6 +322,9 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
                   placeholder="https://images.unsplash.com/photo-..."
                   className="mt-1.5 min-h-11 w-full rounded-lg border border-[#173e32]/20 bg-white px-3 text-xs sm:text-sm text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#10b981]"
                 />
+                <p className="mt-1 text-[11px] text-[#557267]">
+                  Opsional. Tanpa gambar, kartu dan halaman baca tetap tampil berbasis teks.
+                </p>
               </div>
 
               <div>
@@ -360,7 +384,9 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
                 <h3 id="preview-title" className="mt-2 font-serif text-xl font-bold text-[#173e32]">
                   {previewArticle.judul}
                 </h3>
-                <p className="text-xs text-[#557267]">Diperbarui: {previewArticle.diperbaruiPada}</p>
+                <p className="text-xs text-[#557267]">
+                  Ditulis oleh {previewArticle.penulis || "Admin"} · {previewArticle.diperbaruiPada}
+                </p>
               </div>
               <button
                 type="button"

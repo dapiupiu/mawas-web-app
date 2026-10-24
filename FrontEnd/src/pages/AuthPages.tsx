@@ -9,9 +9,6 @@ import {
   MapPinned,
   Sprout,
   ShieldCheck,
-  KeyRound,
-  UserCheck,
-  Building2
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -346,7 +343,7 @@ export function LoginPage() {
 
               <Field
                 id="password"
-                label="Kata Sandi / Dummy Password"
+                label="Kata Sandi"
                 type="password"
                 placeholder="Masukkan kata sandi akun"
                 icon={<LockKeyhole className="size-4" />}
@@ -381,61 +378,6 @@ export function LoginPage() {
                 <span>{message}</span>
               </div>
             )}
-
-            {/* Box Penjelasan Registrasi Tertutup Instansi */}
-            <div className="mt-5 rounded-xl border border-[#173e32]/10 bg-[#f1f6ef] p-3.5 text-xs text-[#36564a] leading-relaxed">
-              <div className="flex items-center gap-2 font-bold text-[#173e32]">
-                <Building2 className="size-4 text-[#10b981]" />
-                <span>Pendaftaran Akun Terpusat (Sistem Tertutup)</span>
-              </div>
-              <p className="mt-1 text-[11px] text-[#557267]">
-                Pendaftaran akun operator tidak dibuka untuk publik. Seluruh akun didaftarkan langsung oleh Administrator Sistem. Hubungi admin instansi Anda jika membutuhkan hak akses baru.
-              </p>
-            </div>
-
-            {/* Quick Testing Shortcuts (Superadmin & Operator) */}
-            <div className="mt-4 rounded-xl border border-dashed border-[#b45309]/30 bg-[#fef3c7]/50 p-3 text-xs">
-              <span className="block font-bold text-[#78350f] text-[11px]">
-                Mode Pengujian / Simulasi Akses Cepat:
-              </span>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    authApi.loginDevBypass({
-                      id: "usr-admin-01",
-                      name: "Super Administrator",
-                      email: "admin@mawas.id",
-                      role: "admin",
-                      username: "Super Administrator",
-                    });
-                    navigate("/dashboard");
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-[#173e32]/20 bg-white px-2.5 py-1 text-[11px] font-bold text-[#173e32] hover:bg-[#173e32] hover:text-white transition-colors"
-                >
-                  <KeyRound className="size-3 text-[#10b981]" />
-                  <span>Masuk sebagai Superadmin</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    authApi.loginDevBypass({
-                      id: "usr-op-01",
-                      name: "Ahmad Fauzi (Operator)",
-                      email: "operator.sumut@mawas.id",
-                      role: "operator",
-                      username: "Operator Lapangan",
-                    });
-                    navigate("/dashboard");
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-[#173e32]/20 bg-white px-2.5 py-1 text-[11px] font-bold text-[#173e32] hover:bg-[#173e32] hover:text-white transition-colors"
-                >
-                  <UserCheck className="size-3 text-[#b45309]" />
-                  <span>Masuk sebagai Operator</span>
-                </button>
-              </div>
-            </div>
 
             {/* Footer copyright */}
             <div className="mt-6 text-center text-[11px] text-[#557267]">

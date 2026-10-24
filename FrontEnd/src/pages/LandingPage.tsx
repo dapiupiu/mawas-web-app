@@ -1,44 +1,16 @@
-import {
-  ArrowDown,
-  ArrowUpRight,
-  CircleAlert,
-  Database,
-  Mail,
-  Route,
-} from "lucide-react";
+import { ArrowDown, ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { ArticlesSection } from "@/components/landing/ArticlesSection";
+import { BrandMark } from "@/components/landing/BrandMark";
 import { FAQ } from "@/components/landing/FAQ";
-import { InterventionSection } from "@/components/landing/InterventionSection";
-import { MethodologySection } from "@/components/landing/MethodologySection";
-import { PillarsSection } from "@/components/landing/PillarsSection";
+import { HowItWorksSection } from "@/components/landing/HowItWorksSection";
 import { Reveal } from "@/components/landing/Reveal";
 import { RiskMapPreview } from "@/components/landing/RiskMapPreview";
-import { RoadmapSection } from "@/components/landing/RoadmapSection";
 import { AgriStatusPanel } from "@/components/landing/AgriStatusPanel";
 import { HeroAiForecast } from "@/components/landing/HeroAiForecast";
 import { SiteHeader } from "@/components/landing/SiteHeader";
 
-const steps = [
-  {
-    number: "01",
-    title: "Agregasi indikator satelit",
-    body: "Sistem mengumpulkan data anomali penyerapan vegetasi (FAPAR HDX/JRC) dan variabel iklim historis.",
-    icon: Database,
-  },
-  {
-    number: "02",
-    title: "Estimasi risiko 30 hari",
-    body: "Data diolah menjadi estimasi tingkat stres vegetasi per kabupaten sebagai indikator awal kekeringan pertanian.",
-    icon: CircleAlert,
-  },
-  {
-    number: "03",
-    title: "Dukung mitigasi lapangan",
-    body: "Menyediakan sinyal dini bagi dinas pertanian dan pemangku kepentingan untuk intervensi irigasi atau pompanisasi.",
-    icon: Route,
-  },
-];
 const copyrightYear = new Date().getFullYear();
 
 export function LandingPage() {
@@ -89,13 +61,12 @@ export function LandingPage() {
                     variant="outline"
                     className="min-h-11 border-[#173e32]/25 bg-transparent px-5 text-[#173e32] hover:bg-[#dce7d7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b97a16]"
                   >
-                    <a href="#pilar-pangan">
-                      Pelajari fokus MVP <ArrowDown className="ml-1" />
+                    <a href="#status-wilayah">
+                      Lihat status wilayah <ArrowDown className="ml-1" />
                     </a>
                   </Button>
                 </div>
 
-                {/* Component perkiraan AI di tempat kosong bawah button */}
                 <HeroAiForecast />
               </div>
             </Reveal>
@@ -106,91 +77,8 @@ export function LandingPage() {
         </section>
 
         <AgriStatusPanel />
-        <PillarsSection />
-        <MethodologySection />
-
-        <section
-          id="peta-risiko"
-          className="bg-[#173e32] px-4 py-14 text-[#f5f1e8] sm:px-6 sm:py-20 lg:px-10 xl:px-12 lg:py-24"
-        >
-          <div className="mx-auto grid w-full max-w-[1680px] gap-8 lg:grid-cols-[1fr_1fr] lg:items-end lg:justify-between">
-            <Reveal>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#b9d0a8]">
-                  Ruang baca publik
-                </p>
-                <h2 className="mt-3 font-serif text-3xl leading-tight tracking-[-0.03em] sm:text-4xl lg:text-5xl">
-                  Mulai dari peta risiko, lalu dalami kondisi vegetasi wilayah.
-                </h2>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="mt-6 min-h-11 border-[#b9d0a8]/50 bg-transparent px-5 text-[#f5f1e8] hover:bg-[#f5f1e8] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b97a16]"
-                >
-                  <Link to="/peta-risiko">
-                    Buka peta penuh <ArrowUpRight className="ml-1" />
-                  </Link>
-                </Button>
-              </div>
-            </Reveal>
-            <Reveal>
-              <div className="border-l-2 border-[#b97a16] pl-5 text-sm leading-relaxed text-[#dbe7d5] sm:text-base sm:leading-7">
-                Peta dirancang terbuka untuk publik tanpa batas login.
-                Masyarakat, kelompok tani, dan akademisi dapat melihat indikator
-                anomali stres vegetasi per kabupaten serta catatan rencana
-                mitigasi di wilayah terkait secara transparan.
-              </div>
-            </Reveal>
-          </div>
-        </section>
-
-        <section
-          id="cara-kerja"
-          className="px-4 py-14 sm:px-6 sm:py-20 lg:px-10 xl:px-12 lg:py-24"
-        >
-          <div className="mx-auto w-full max-w-[1680px]">
-            <Reveal>
-              <div className="grid gap-6 border-b border-[#173e32]/15 pb-8 md:grid-cols-2 md:items-end md:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-[#557267]">
-                    Alur informasi
-                  </p>
-                  <h2 className="mt-2 font-serif text-3xl tracking-[-0.03em] sm:text-4xl lg:text-5xl">
-                    Data satelit yang terukur, untuk tindakan mitigasi terarah.
-                  </h2>
-                </div>
-                <p className="text-xs leading-relaxed text-[#36564a] sm:text-sm sm:leading-6">
-                  Tahapan sistematis Mawas dalam mengubah anomali penginderaan
-                  jauh menjadi keputusan mitigasi kekeringan sebelum kapasitas
-                  panen terganggu.
-                </p>
-              </div>
-            </Reveal>
-            <div className="grid gap-0 md:grid-cols-3">
-              {steps.map((step) => (
-                <Reveal key={step.number}>
-                  <article className="group border-b border-[#173e32]/15 py-8 md:border-b-0 md:px-7 md:first:pl-0 md:last:pr-0 md:not(:last-child):border-r">
-                    <div className="flex items-start justify-between">
-                      <span className="font-serif text-2xl text-[#b97a16]">
-                        {step.number}
-                      </span>
-                      <step.icon className="size-5 text-[#557267]" />
-                    </div>
-                    <h3 className="mt-8 text-lg font-semibold text-[#173e32]">
-                      {step.title}
-                    </h3>
-                    <p className="mt-2.5 max-w-xs text-xs leading-5 text-[#36564a] sm:text-sm sm:leading-6">
-                      {step.body}
-                    </p>
-                  </article>
-                </Reveal>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <InterventionSection />
-        <RoadmapSection />
+        <ArticlesSection />
+        <HowItWorksSection />
 
         <section
           id="pertanyaan"
@@ -223,25 +111,10 @@ export function LandingPage() {
           <div className="grid gap-10 border-b border-[#f5f1e8]/15 pb-10 lg:grid-cols-[1.25fr_0.7fr_0.7fr_0.9fr]">
             <div>
               <div className="flex items-center gap-3">
-                <span
-                  className="grid size-10 place-items-center rounded-full bg-[#dce7d7] text-[#173e32]"
-                  aria-hidden="true"
-                >
-                  <svg viewBox="0 0 32 32" className="size-6" fill="none">
-                    <path
-                      d="M5 23c4-9 8-11 13-15 0 7-2 12-8 17"
-                      stroke="currentColor"
-                      strokeWidth="2.4"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M9 25c5-2 10-1 15-7"
-                      stroke="currentColor"
-                      strokeWidth="2.4"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </span>
+                <BrandMark
+                  className="size-10 rounded-full bg-[#f5f1e8] p-1"
+                  variant="colour"
+                />
                 <span className="text-lg font-semibold tracking-tight">
                   Mawas
                 </span>
@@ -250,22 +123,12 @@ export function LandingPage() {
                 Sistem Peringatan Dini Risiko Kekeringan Pertanian untuk
                 Mendukung Ketahanan Pangan.
               </p>
-              <div className="mt-5 flex items-start gap-2.5 text-xs text-[#dbe7d5] sm:text-sm">
-                <Mail className="mt-0.5 size-4 shrink-0" />
-                <p>
-                  <span className="block text-xs font-semibold text-[#b9d0a8]">
-                    Email proyek
-                  </span>
-                  <span className="mt-0.5 block">[EMAIL PROYEK]</span>
-                </p>
-              </div>
             </div>
             <FooterColumn title="Jelajahi">
               <Link to="/peta-risiko">Peta risiko publik</Link>
-              <a href="#pilar-pangan">Pilar ketahanan pangan</a>
-              <a href="#metrik-fapar">Metrik data FAPAR</a>
+              <a href="#status-wilayah">Status wilayah</a>
+              <a href="#artikel">Artikel</a>
               <a href="#cara-kerja">Cara kerja</a>
-              <a href="#intervensi">Status intervensi</a>
               <a href="#pertanyaan">Pertanyaan umum</a>
             </FooterColumn>
             <FooterColumn title="Akses">
