@@ -1,26 +1,28 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { isAxiosError } from "axios";
 import { 
   AlertTriangle, 
+  CheckCircle2,
   ClipboardCheck, 
+  CircleAlert,
   FileText, 
   MapPinned, 
   ShieldCheck, 
   ArrowRight,
   BookOpen,
-  Calendar
+  Calendar,
+  X
 } from "lucide-react";
-import { authApi, getStoredUser, type StoredUser } from "@/lib/api";
+import { api, authApi, getStoredUser, type StoredUser } from "@/lib/api";
 import type { DashboardTab, KnowledgeArticle, PredictionItem, ManagedUser } from "@/types/dashboard";
 import { 
   getDashboardArticles, 
-  getDashboardPredictions, 
   saveDashboardArticles, 
   saveDashboardPredictions,
   getDashboardModelMeta,
   saveDashboardModelMeta,
-  parseModelJsonToPredictions,
   getDashboardUsers,
   saveDashboardUsers,
   type ModelMetadata
@@ -43,6 +45,10 @@ export function DashboardPage() {
   const [articles, setArticles] = useState<KnowledgeArticle[]>([]);
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [selected, setSelected] = useState<PredictionItem | null>(null);
+  const [verificationNotice, setVerificationNotice] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
   const [modelMeta, setModelMeta] = useState<ModelMetadata>(getDashboardModelMeta());
 
   useEffect(() => {
@@ -54,33 +60,22 @@ export function DashboardPage() {
     }
     setUser(stored);
 
-    const initialPreds = getDashboardPredictions();
-    setPredictions(initialPreds);
     setArticles(getDashboardArticles());
     setUsers(getDashboardUsers());
     setModelMeta(getDashboardModelMeta());
 
-    // Proactively hydrate full 514 dataset if user only had initial demo items
-    if (initialPreds.length < 20) {
-      fetch("/data/risiko_kabupaten_terbaru.json")
-        .then((res) => {
-          if (!res.ok) return null;
-          return res.json();
-        })
-        .then((json) => {
-          if (json) {
-            const { predictions: parsed, metadata } = parseModelJsonToPredictions(json);
-            setPredictions(parsed);
-            saveDashboardPredictions(parsed);
-            setModelMeta(metadata);
-            saveDashboardModelMeta(metadata);
-          }
-        })
-        .catch(() => {
-          // Keep existing initial predictions on fetch failure
-        });
-    }
+    api.get<{ data: PredictionItem[] }>("/api/verifikasi")
+      .then(({ data }) => setPredictions(data.data))
+      .catch((error) => {
+        console.error("Gagal memuat prediksi Dashboard dari backend:", error);
+      });
   }, [navigate]);
+
+  useEffect(() => {
+    if (!verificationNotice) return;
+    const timeout = window.setTimeout(() => setVerificationNotice(null), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [verificationNotice]);
 
   if (!user) {
     return (
@@ -103,10 +98,23 @@ export function DashboardPage() {
     saveDashboardArticles(next);
   };
 
-  const saveVerification = (next: PredictionItem) => {
-    const updated = predictions.map((item) => (item.id === next.id ? next : item));
-    setPredictions(updated);
-    saveDashboardPredictions(updated);
+  const saveVerification = async (next: PredictionItem) => {
+    try {
+      const { data } = await api.post<{ data: PredictionItem }>("/api/verifikasi", {
+        kodeKabupaten: next.kodeKabupaten,
+        statusVerifikasi: next.statusVerifikasi,
+        catatanOperator: next.catatanOperator,
+        diverifikasiOleh: next.diverifikasiOleh,
+      });
+      setPredictions((current) =>
+        current.map((item) => item.kodeKabupaten === data.data.kodeKabupaten ? data.data : item)
+      );
+    } catch (error) {
+      if (isAxiosError<{ error?: string }>(error)) {
+        throw new Error(error.response?.data?.error || error.message);
+      }
+      throw error;
+    }
   };
 
   const handleModelUpdated = (newPreds: PredictionItem[], meta: ModelMetadata) => {
@@ -458,7 +466,32 @@ export function DashboardPage() {
         isOpen={Boolean(selected)}
         onClose={() => setSelected(null)}
         onSave={saveVerification}
+        onSaveResult={setVerificationNotice}
       />
+      {verificationNotice && (
+        <div
+          role={verificationNotice.success ? "status" : "alert"}
+          aria-live={verificationNotice.success ? "polite" : "assertive"}
+          className={`fixed bottom-4 right-4 z-[60] flex w-[calc(100%-2rem)] max-w-md items-start gap-3 rounded-xl border p-4 shadow-xl ${
+            verificationNotice.success
+              ? "border-[#166534]/30 bg-[#dcfce7] text-[#14532d]"
+              : "border-[#991b1b]/30 bg-[#fee2e2] text-[#991b1b]"
+          }`}
+        >
+          {verificationNotice.success
+            ? <CheckCircle2 className="mt-0.5 size-5 shrink-0" />
+            : <CircleAlert className="mt-0.5 size-5 shrink-0" />}
+          <p className="flex-1 text-sm font-semibold">{verificationNotice.message}</p>
+          <button
+            type="button"
+            onClick={() => setVerificationNotice(null)}
+            className="grid size-7 shrink-0 place-items-center rounded-md hover:bg-black/5"
+            aria-label="Tutup notifikasi"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

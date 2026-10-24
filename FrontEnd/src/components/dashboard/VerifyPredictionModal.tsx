@@ -6,10 +6,11 @@ interface VerifyPredictionModalProps {
   item: PredictionItem | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (item: PredictionItem) => void;
+  onSave: (item: PredictionItem) => Promise<void>;
+  onSaveResult: (result: { success: boolean; message: string }) => void;
 }
 
-export function VerifyPredictionModal({ item, isOpen, onClose, onSave }: VerifyPredictionModalProps) {
+export function VerifyPredictionModal({ item, isOpen, onClose, onSave, onSaveResult }: VerifyPredictionModalProps) {
   const [status, setStatus] = useState<VerificationStatus>("menunggu");
   const [notes, setNotes] = useState("");
   const [verifierName, setVerifierName] = useState("");
@@ -62,11 +63,11 @@ export function VerifyPredictionModal({ item, isOpen, onClose, onSave }: VerifyP
         role="dialog" 
         aria-modal="true" 
         aria-labelledby="verification-title" 
-        className="w-full max-w-lg rounded-t-2xl sm:rounded-xl border border-[#173e32]/20 bg-[#fbfaf6] shadow-2xl overflow-hidden" 
+        className="flex w-full max-w-lg max-h-[90dvh] flex-col overflow-hidden rounded-t-2xl sm:rounded-xl border border-[#173e32]/20 bg-[#fbfaf6] shadow-2xl"
         onMouseDown={(event) => event.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-[#173e32]/10 bg-white px-5 py-4 sm:px-6">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#173e32]/10 bg-white px-5 py-4 sm:px-6">
           <div>
             <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#10b981]">
               <ShieldCheck className="size-4" />
@@ -91,17 +92,32 @@ export function VerifyPredictionModal({ item, isOpen, onClose, onSave }: VerifyP
 
         {/* Modal Body Form */}
         <form 
-          className="space-y-4 p-5 sm:p-6" 
-          onSubmit={(event) => {
+          className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-5 sm:p-6"
+          onSubmit={async (event) => {
             event.preventDefault();
-            onSave({ 
-              ...item, 
-              statusVerifikasi: status, 
-              catatanOperator: notes.trim() || undefined,
-              diverifikasiOleh: verifierName.trim() || undefined,
-              terakhirDiperbarui: new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date()) 
-            });
-            onClose();
+            try {
+              await onSave({
+                ...item,
+                statusVerifikasi: status,
+                catatanOperator: notes.trim() || undefined,
+                diverifikasiOleh: verifierName.trim() || undefined,
+                terakhirDiperbarui: new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date())
+              });
+              onClose();
+              onSaveResult({
+                success: true,
+                message: "Catatan verifikasi berhasil disimpan.",
+              });
+            } catch (error) {
+              console.error("Gagal menyimpan verifikasi ke backend:", error);
+              onClose();
+              onSaveResult({
+                success: false,
+                message: error instanceof Error
+                  ? `Gagal menyimpan verifikasi: ${error.message}`
+                  : "Gagal menyimpan verifikasi. Silakan coba lagi.",
+              });
+            }
           }}
         >
           {/* Read-Only Model Score Banner */}
