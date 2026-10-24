@@ -42,6 +42,9 @@ export interface KnowledgeArticle {
   judul: string;
   isi: string;
   kategori: string;
+  /** Optional cover image. Cards and read page adapt when absent. */
   thumbnailUrl?: string;
+  /** Display name; defaults to Admin when omitted. */
+  penulis?: string;
   diperbaruiPada: string;
 }

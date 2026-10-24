@@ -10,31 +10,51 @@ export const INITIAL_ARTICLES: KnowledgeArticle[] = [
     id: "art-01",
     judul: "Protokol Mitigasi Wilayah Stres Vegetasi Tinggi pada Pertanian Padi Sawah",
     kategori: "Mitigasi Lapangan",
-    isi: "Ketika anomali vegetasi FAPAR terdeteksi negatif secara persisten selama 30 hari, dinas pertanian kabupaten dan kelompok tani disarankan segera mengaktifkan jadwal gilir air irigasi, menyiapkan pompa mobile di titik aliran sungai permukaan, serta memprioritaskan pasokan air pada petak sawah yang berada pada fase bunting hingga pengisian bulir padi.",
+    penulis: "Admin",
+    thumbnailUrl:
+      "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&w=1200&q=80",
+    isi: "Ketika anomali vegetasi FAPAR terdeteksi negatif secara persisten selama 30 hari, dinas pertanian kabupaten dan kelompok tani disarankan segera mengaktifkan jadwal gilir air irigasi, menyiapkan pompa mobile di titik aliran sungai permukaan, serta memprioritaskan pasokan air pada petak sawah yang berada pada fase bunting hingga pengisian bulir padi.\n\nLangkah berikutnya adalah berkoordinasi dengan pengelola pintu air dan mencatat petak prioritas agar distribusi air tidak bentrok antarblok. Catatan lapangan ini kemudian dimasukkan ke Pusat Verifikasi Mawas sebagai bukti tindak lanjut.",
     diperbaruiPada: "23 Okt 2026",
   },
   {
     id: "art-02",
     judul: "Panduan Membaca Sinyal Deviasi FAPAR bagi Petugas Penyuluh Lapangan (PPL)",
     kategori: "Panduan Teknis",
-    isi: "FAPAR (Fraction of Absorbed Photosynthetically Active Radiation) mengukur proporsi radiasi matahari yang diserap oleh klorofil tanaman untuk fotosintesis. Nilai deviasi negatif mengindikasikan klorofil tanaman mengalami penurunan penyerapan energi, yang pada tanaman padi dan palawija merupakan sinyal awal kekurangan air sebelum kekeringan kasat mata terlihat.",
+    penulis: "Admin",
+    isi: "FAPAR (Fraction of Absorbed Photosynthetically Active Radiation) mengukur proporsi radiasi matahari yang diserap oleh klorofil tanaman untuk fotosintesis. Nilai deviasi negatif mengindikasikan klorofil tanaman mengalami penurunan penyerapan energi, yang pada tanaman padi dan palawija merupakan sinyal awal kekurangan air sebelum kekeringan kasat mata terlihat.\n\nBaca skor relatif per kabupaten sebagai peringatan, bukan vonis gagal panen. Selalu bandingkan dengan kondisi irigasi dan curah hujan lokal sebelum merekomendasikan aksi lapangan.",
     diperbaruiPada: "22 Okt 2026",
   },
   {
     id: "art-03",
     judul: "Standar Operasional Prosedur (SOP) Verifikasi Lapangan Risiko Kekeringan",
     kategori: "SOP Verifikasi",
-    isi: "Petugas pemeriksa lapangan wajib melakukan pengecekan visual pada tiga aspek utama: (1) ketinggian muka air pada saluran sekunder dan tersier, (2) tanda keretakan tanah pada petak sawah sampel, dan (3) gejala kelayuan daun pada sore hari. Hasil verifikasi dicatat ke dalam Pusat Verifikasi Mawas untuk menjadi rujukan laporan peringatan dini.",
+    penulis: "Admin",
+    thumbnailUrl:
+      "https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=1200&q=80",
+    isi: "Petugas pemeriksa lapangan wajib melakukan pengecekan visual pada tiga aspek utama: (1) ketinggian muka air pada saluran sekunder dan tersier, (2) tanda keretakan tanah pada petak sawah sampel, dan (3) gejala kelayuan daun pada sore hari.\n\nHasil verifikasi dicatat ke dalam Pusat Verifikasi Mawas untuk menjadi rujukan laporan peringatan dini. Foto lokasi dan waktu kunjungan membantu membedakan anomali satelit dari gangguan lokal seperti hama atau banjir singkat.",
     diperbaruiPada: "21 Okt 2026",
   },
   {
     id: "art-04",
     judul: "Strategi Distribusi Benih Tahan Kering untuk Antisipasi Musim Gadu",
     kategori: "Manajemen Pertanian",
-    isi: "Bagi kabupaten dengan riwayat risiko kekeringan berulang, balai benih merekomendasikan varietas padi tahan kekeringan seperti Inpari 42 GSR atau varietas gogo lokal yang membutuhkan pasokan air lebih hemat dibandingkan varietas umum.",
+    penulis: "Admin",
+    isi: "Bagi kabupaten dengan riwayat risiko kekeringan berulang, balai benih merekomendasikan varietas padi tahan kekeringan seperti Inpari 42 GSR atau varietas gogo lokal yang membutuhkan pasokan air lebih hemat dibandingkan varietas umum.\n\nDistribusi sebaiknya diprioritaskan ke wilayah yang berulang muncul kuning atau merah pada peta risiko Mawas, dengan pendampingan PPL agar jadwal tanam selaras dengan ketersediaan air.",
     diperbaruiPada: "19 Okt 2026",
   },
 ];
+
+export function normalizeArticle(article: KnowledgeArticle): KnowledgeArticle {
+  return {
+    ...article,
+    penulis: article.penulis?.trim() || "Admin",
+  };
+}
+
+export function getArticleById(id: string): KnowledgeArticle | null {
+  const found = getDashboardArticles().find((item) => item.id === id);
+  return found ? normalizeArticle(found) : null;
+}
 
 export const INITIAL_PREDICTIONS: PredictionItem[] = [
   {
@@ -191,7 +211,7 @@ export const INITIAL_PREDICTIONS: PredictionItem[] = [
 ];
 
 const PREDS_KEY = "mawas_dashboard_predictions_v2";
-const ARTICLES_KEY = "mawas_dashboard_articles_v2";
+const ARTICLES_KEY = "mawas_dashboard_articles_v3";
 const MODEL_META_KEY = "mawas_dashboard_model_meta_v2";
 
 export interface ModelMetadata {
@@ -251,14 +271,16 @@ export function saveDashboardPredictions(data: PredictionItem[]) {
 }
 
 export function getDashboardArticles(): KnowledgeArticle[] {
-  if (typeof window === "undefined") return INITIAL_ARTICLES;
+  const fallback = INITIAL_ARTICLES.map(normalizeArticle);
+  if (typeof window === "undefined") return fallback;
   try {
     const raw = localStorage.getItem(ARTICLES_KEY);
-    if (!raw) return INITIAL_ARTICLES;
+    if (!raw) return fallback;
     const parsed = JSON.parse(raw) as KnowledgeArticle[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_ARTICLES;
+    if (!Array.isArray(parsed) || parsed.length === 0) return fallback;
+    return parsed.map(normalizeArticle);
   } catch {
-    return INITIAL_ARTICLES;
+    return fallback;
   }
 }
 
