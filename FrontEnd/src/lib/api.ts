@@ -19,10 +19,6 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 || error.response?.status === 403) {
-      const token = typeof localStorage !== "undefined" ? localStorage.getItem("mawas_token") : null
-      if (token && token.startsWith("mock_dev_")) {
-        return Promise.reject(error)
-      }
       authApi.logout()
       if (typeof window !== "undefined" && window.location.pathname.startsWith("/dashboard")) {
         window.location.href = "/signin"
@@ -206,20 +202,6 @@ export const authApi = {
       "/api/auth/operator-dashboard",
     )
     return data
-  },
-
-  /** Bypass autentikasi sementara untuk keperluan demo & local dev dashboard */
-  loginDevBypass(user?: Partial<StoredUser>) {
-    const mockToken = "mock_dev_token_mawas_bypass_" + Date.now()
-    const mockUser: StoredUser = {
-      id: user?.id ?? "dev-operator-01",
-      email: user?.email ?? "operator@mawas.id",
-      role: user?.role ?? "operator",
-      username: user?.username ?? "Operator Demo",
-      name: user?.name ?? "Operator Demo",
-    }
-    saveSession(mockToken, mockUser)
-    return { token: mockToken, user: mockUser }
   },
 
   logout() {

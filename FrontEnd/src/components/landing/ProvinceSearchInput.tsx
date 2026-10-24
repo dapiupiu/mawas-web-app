@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MapPin, Search, X } from "lucide-react";
-import { INDONESIA_PROVINCES, matchProvince } from "@/lib/provinces";
+import { searchProvinces } from "@/lib/provinces";
 
 interface ProvinceSearchInputProps {
   onSelect?: (province: string) => void;
@@ -29,10 +29,8 @@ export function ProvinceSearchInput({
     }
   }, [searchParams]);
 
-  // Filter provinces based on query
-  const filtered = query.trim()
-    ? INDONESIA_PROVINCES.filter((prov) => matchProvince(query, prov))
-    : INDONESIA_PROVINCES;
+  // Partial match while typing: "kali" → Kalimantan Tengah, Selatan, …
+  const filtered = searchProvinces(query);
 
   // Close dropdown on click outside
   useEffect(() => {

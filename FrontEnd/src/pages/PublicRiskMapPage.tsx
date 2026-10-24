@@ -24,7 +24,6 @@ import {
 import {
   type FormEvent,
   type PointerEvent,
-  type WheelEvent,
   useEffect,
   useMemo,
   useRef,
@@ -117,6 +116,7 @@ export function PublicRiskMapPage() {
   const [pan, setPan] = useState<Point>({ x: 0, y: 0 });
   const pointers = useRef(new Map<number, Point>());
   const gesture = useRef<Gesture | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
 
   // Load provinces GeoJSON on mount
@@ -172,6 +172,25 @@ export function PublicRiskMapPage() {
     return () => {
       ignore = true;
     };
+  }, []);
+
+  // Attach non-passive wheel listener so preventDefault() works without browser warning
+  useEffect(() => {
+    const el = mapContainerRef.current;
+    if (!el) return;
+    const onWheel = (e: globalThis.WheelEvent) => {
+      e.preventDefault();
+      if (e.ctrlKey) {
+        setZoom((v) => clamp(v - e.deltaY * 0.002, 0.85, 12));
+        return;
+      }
+      setPan((c) => ({
+        x: clamp(c.x - e.deltaX, -2600, 2600),
+        y: clamp(c.y - e.deltaY, -1800, 1800),
+      }));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
   useEffect(() => {
@@ -687,29 +706,18 @@ export function PublicRiskMapPage() {
     gesture.current = null;
   }
 
-  function handleWheel(event: WheelEvent<HTMLDivElement>) {
-    event.preventDefault();
-    if (event.ctrlKey) {
-      setZoom((value) => clamp(value - event.deltaY * 0.002, 0.85, 12));
-      return;
-    }
-    setPan((current) => ({
-      x: clamp(current.x - event.deltaX, -2600, 2600),
-      y: clamp(current.y - event.deltaY, -1800, 1800),
-    }));
-  }
-
   return (
-    <main className="relative h-dvh w-screen overflow-hidden bg-[#e8ecdf] text-[#173e32]">
-      {/* Top navigation and breadcrumbs bar */}
-      <header className="absolute left-4 top-4 z-30 flex flex-wrap items-center gap-2">
+    <main className="flex h-dvh w-screen flex-col overflow-hidden bg-[#e8ecdf] text-[#173e32] sm:relative sm:block sm:overflow-hidden">
+      {/* Top navigation bar: fixed on mobile, absolute floating on desktop */}
+      <header className="relative z-30 flex items-center gap-1.5 bg-[#e8ecdf]/95 px-2 py-1.5 shadow-sm backdrop-blur sm:absolute sm:left-4 sm:top-4 sm:flex-wrap sm:gap-2 sm:bg-transparent sm:p-0 sm:shadow-none">
         <Link
           to="/"
-          className="group inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#173e32] bg-[#173e32] px-3.5 text-sm font-semibold text-[#f5f1e8] shadow-[0_8px_20px_rgba(23,62,50,0.2)] transition-colors hover:bg-[#245542] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b97a16]"
+          aria-label="Kembali ke Mawas"
+          className="group inline-flex h-11 min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-md border border-[#173e32] bg-[#173e32] px-2 text-[11px] font-semibold text-[#f5f1e8] shadow-[0_8px_20px_rgba(23,62,50,0.2)] transition-colors hover:bg-[#245542] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b97a16] sm:h-10 sm:min-h-10 sm:gap-2 sm:rounded-lg sm:px-3 sm:text-sm"
         >
-          <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" />
-          <img src="/logo-mawas/VEKTOR/icon/MAWAS-icon-cream.svg" alt="" className="size-4.5 object-contain" />
-          <span>Kembali ke Mawas</span>
+          <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5 sm:size-4" />
+          <img src="/logo-mawas/VEKTOR/icon/MAWAS-icon-cream.svg" alt="" className="size-3.5 object-contain sm:size-4" />
+          <span className="hidden sm:inline">Kembali ke Mawas</span>
         </Link>
 
         {/* Granularity mode switcher tabs */}
@@ -753,20 +761,20 @@ export function PublicRiskMapPage() {
         </div>
 
         {/* Date Selector with Next / Prev buttons matching height */}
-        <div className="inline-flex items-center rounded-md border border-[#173e32]/15 bg-[#f5f1e8]/95 p-1 shadow-sm backdrop-blur">
+        <div className="inline-flex min-w-0 items-center rounded-md border border-[#173e32]/15 bg-[#f5f1e8]/95 p-0.5 shadow-sm backdrop-blur sm:p-1">
           <button
             type="button"
             onClick={() => changeDate(-1)}
             disabled={riskDates.length <= 1 || selectedDate <= minRiskDate}
-            className="inline-flex min-h-9 size-9 items-center justify-center rounded text-[#36564a] hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-11 w-8 shrink-0 items-center justify-center rounded text-[#36564a] transition-colors hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16] disabled:cursor-not-allowed disabled:opacity-40 sm:size-9 sm:h-9 sm:w-9"
             aria-label="Tanggal sebelumnya"
             title={riskDates.length <= 1 ? "Hanya tersedia satu tanggal snapshot" : "Snapshot sebelumnya"}
           >
-            <ChevronLeft className="size-4" />
+            <ChevronLeft className="size-3.5 sm:size-4" />
           </button>
-          <div className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-semibold text-[#173e32]">
-            <Calendar className="size-3.5 text-[#b97a16]" />
-            <span className="hidden sm:inline text-[11px] text-[#557267]">
+          <div className="inline-flex min-h-11 min-w-0 items-center gap-1 px-1 text-[11px] font-semibold text-[#173e32] sm:min-h-9 sm:gap-1.5 sm:px-2 sm:text-xs">
+            <Calendar className="hidden size-3.5 text-[#b97a16] sm:block" />
+            <span className="hidden text-[11px] text-[#557267] sm:inline">
               Tanggal:
             </span>
             <input
@@ -776,7 +784,8 @@ export function PublicRiskMapPage() {
               max={maxRiskDate || undefined}
               disabled={riskDates.length <= 1}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent text-xs font-bold text-[#173e32] cursor-pointer focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
+              aria-label="Tanggal snapshot peta"
+              className="w-[7.6rem] min-w-0 cursor-pointer bg-transparent text-[11px] font-bold text-[#173e32] focus:outline-none disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto sm:text-xs"
               title={riskDates.length <= 1 ? "Filter tanggal hanya tersedia jika ada beberapa snapshot" : "Pilih tanggal snapshot"}
             />
             {riskDates.length === 1 && (
@@ -789,11 +798,11 @@ export function PublicRiskMapPage() {
             type="button"
             onClick={() => changeDate(1)}
             disabled={riskDates.length <= 1 || selectedDate >= maxRiskDate}
-            className="inline-flex min-h-9 size-9 items-center justify-center rounded text-[#36564a] hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-11 w-8 shrink-0 items-center justify-center rounded text-[#36564a] transition-colors hover:bg-[#dce7d7] hover:text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#b97a16] disabled:cursor-not-allowed disabled:opacity-40 sm:size-9 sm:h-9 sm:w-9"
             aria-label="Tanggal berikutnya"
             title={riskDates.length <= 1 ? "Hanya tersedia satu tanggal snapshot" : "Snapshot berikutnya"}
           >
-            <ChevronRight className="size-4" />
+            <ChevronRight className="size-3.5 sm:size-4" />
           </button>
         </div>
 
@@ -839,8 +848,11 @@ export function PublicRiskMapPage() {
         </nav>
       </header>
 
-      {/* Interactive Map Area */}
-      <div className="absolute inset-0 flex items-center justify-center">
+      {/* Interactive Map Area: flex-1 on mobile, absolute fill on desktop */}
+      <div
+        ref={mapContainerRef}
+        className="relative flex-1 sm:absolute sm:inset-0 flex items-center justify-center overflow-hidden"
+      >
         {(isLoadingProv || (granularity === "kabupaten" && isLoadingKab)) && (
           <div
             role="status"
@@ -897,7 +909,6 @@ export function PublicRiskMapPage() {
             className="absolute inset-0 grid touch-none place-items-center cursor-grab active:cursor-grabbing"
             animate={{ scale: zoom, x: pan.x, y: pan.y }}
             transition={{ duration: reduceMotion ? 0 : 0.22, ease: "easeOut" }}
-            onWheel={handleWheel}
             onPointerDown={startGesture}
             onPointerMove={moveGesture}
             onPointerUp={endGesture}
@@ -1113,64 +1124,43 @@ export function PublicRiskMapPage() {
         </Button>
       </div>
 
-      {/* Mobile toggle button for filter panel */}
-      <div className="sm:hidden absolute top-4 right-4 z-30">
-        <Button
+      {/* Mobile persistent bottom search bar (replaces floating toggle button) */}
+      <div className="sm:hidden relative z-30 flex items-center gap-2 border-t border-[#173e32]/15 bg-[#f5f1e8]/98 px-3 py-2.5 shadow-[0_-4px_12px_rgba(23,62,50,0.08)] backdrop-blur">
+        <button
           type="button"
           onClick={() => setIsMobilePanelOpen((open) => !open)}
-          className="min-h-11 items-center gap-2 rounded-md border border-[#173e32]/15 bg-[#f5f1e8] px-3.5 text-xs font-semibold text-[#173e32] shadow-sm hover:bg-white focus-visible:outline-2 focus-visible:outline-[#b97a16]"
+          className="flex flex-1 items-center gap-2.5 rounded-lg border border-[#173e32]/20 bg-white px-3.5 py-2.5 text-left text-xs font-medium text-[#557267] shadow-sm focus-visible:outline-2 focus-visible:outline-[#b97a16]"
           aria-expanded={isMobilePanelOpen}
           aria-controls="risk-map-sidebar"
         >
-          {isMobilePanelOpen ? (
-            <X className="size-4" />
-          ) : (
-            <SlidersHorizontal className="size-4" />
-          )}
-          {isMobilePanelOpen ? "Tutup Panel" : "Filter & Wilayah"}
-        </Button>
+          <Search className="size-4 shrink-0 text-[#173e32]" />
+          <span className="truncate">
+            {selectedKabupatenName || selectedProvinceName
+              ? `${selectedKabupatenName || selectedProvinceName}`
+              : "Cari provinsi atau kabupaten..."}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsMobilePanelOpen((open) => !open)}
+          className="grid size-11 shrink-0 place-items-center rounded-lg border border-[#173e32]/20 bg-white text-[#173e32] shadow-sm focus-visible:outline-2 focus-visible:outline-[#b97a16]"
+          aria-label="Filter wilayah"
+        >
+          {isMobilePanelOpen ? <X className="size-5" /> : <SlidersHorizontal className="size-5" />}
+        </button>
       </div>
 
-      {/* Mobile bottom summary pill */}
-      {!isMobilePanelOpen &&
-        (selectedKabupatenFeature || selectedProvinceFeature) && (
-          <div className="sm:hidden absolute bottom-4 inset-x-4 z-20 flex items-center justify-between rounded-lg border border-[#173e32]/15 bg-[#f5f1e8]/95 px-3 py-2.5 shadow-md backdrop-blur">
-            <div className="min-w-0 pr-2">
-              <p className="truncate text-xs font-semibold text-[#173e32]">
-                {selectedKabupatenFeature
-                  ? selectedKabupatenFeature.properties.kab_name
-                  : selectedProvinceFeature?.properties.name}
-              </p>
-              <p className="text-[11px] text-[#557267]">
-                Status:{" "}
-                <span className="font-semibold text-[#173e32]">
-                  {selectedKabupatenFeature
-                    ? getKabupatenRisk(selectedKabupatenFeature)?.kategori ||
-                      "Data tidak tersedia"
-                    : selectedProvinceFeature
-                      ? getProvinceRisk(selectedProvinceFeature.properties.name)
-                          .status
-                      : ""}
-                </span>
-              </p>
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => setIsMobilePanelOpen(true)}
-              className="min-h-9 shrink-0 bg-[#173e32] px-3 text-xs text-[#f5f1e8] hover:bg-[#245542]"
-            >
-              Lihat Detail
-            </Button>
-          </div>
-        )}
+      {/* Mobile bottom summary: shown in the search bar label above, no extra pill needed */}
 
-      {/* Aside details and filter drawer */}
+      {/* Panel: bottom sheet on mobile, floating aside on desktop */}
       <aside
         id="risk-map-sidebar"
-        className={`absolute right-4 top-4 z-30 max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-md overflow-y-auto rounded-xl border border-[#173e32]/15 bg-[#fbfaf5] p-5 shadow-[0_16px_36px_rgba(23,62,50,0.14)] sm:right-5 sm:top-5 sm:max-h-[calc(100dvh-2.5rem)] sm:p-6 transition-transform duration-200 ${
-          isMobilePanelOpen ? "translate-y-0" : "max-sm:hidden"
-        }`}
+        className={`
+          fixed bottom-0 inset-x-0 z-40 max-h-[82dvh] overflow-y-auto rounded-t-2xl border-t border-[#173e32]/15 bg-[#fbfaf5] p-5 shadow-[0_-8px_32px_rgba(23,62,50,0.16)]
+          transition-transform duration-300 ease-out
+          sm:absolute sm:inset-auto sm:right-5 sm:top-5 sm:bottom-auto sm:max-h-[calc(100dvh-2.5rem)] sm:w-auto sm:max-w-md sm:rounded-xl sm:border sm:border-[#173e32]/15 sm:p-6 sm:shadow-[0_16px_36px_rgba(23,62,50,0.14)] sm:translate-y-0
+          ${isMobilePanelOpen ? "translate-y-0" : "translate-y-full sm:translate-y-0"}
+        `}
         aria-label="Pencarian wilayah dan indikator kekeringan"
       >
         <div className="flex items-start justify-between gap-3">

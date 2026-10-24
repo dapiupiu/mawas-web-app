@@ -3,12 +3,11 @@ import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 
 const sections = [
-  { id: "pilar-pangan", label: "Fokus saat ini", title: "Kondisi lahan" },
-  { id: "metrik-fapar", label: "Dasar data", title: "Sinyal satelit" },
-  { id: "peta-risiko", label: "Peta publik", title: "Baca wilayah" },
-  { id: "cara-kerja", label: "Alur sistem", title: "Dari sinyal ke respons" },
-  { id: "intervensi", label: "Tindak lanjut", title: "Mitigasi lapangan" },
-  { id: "roadmap", label: "Peta jalan", title: "Tahap berikutnya" },
+  { id: "beranda", label: "Peta", title: "Baca wilayah" },
+  { id: "status-wilayah", label: "Status risiko", title: "Per kabupaten" },
+  { id: "artikel", label: "Artikel", title: "Panduan mitigasi" },
+  { id: "cara-kerja", label: "Cara kerja", title: "Dari sinyal ke respons" },
+  { id: "pertanyaan", label: "FAQ", title: "Pertanyaan umum" },
 ];
 
 export function SectionProgressRail() {
