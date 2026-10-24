@@ -3,7 +3,9 @@
 ## Backend API
 
 - **Development:** Jalankan Backend Express di port `5000` dan Frontend dengan `npm run dev`. Request `/api/*` dari Vite akan diteruskan ke `http://localhost:5000`, jadi browser memakai origin Vite dan tidak perlu alamat Backend lokal di kode Frontend.
-- **Production (Vercel):** Atur environment variable `VITE_API_URL` ke URL publik Backend Express, misalnya `https://backend.example.com`. Setelah mengubah variable, lakukan redeploy Frontend. Backend harus di-deploy dan mengizinkan origin domain Frontend melalui CORS.
+- **Production (Vercel):** Frontend dan Backend Express dapat menjadi dua proyek Vercel terpisah dari repository yang sama. Atur Root Directory proyek Frontend ke `FrontEnd` dan proyek Backend ke `BackEnd`, lalu pilih preset/framework Express untuk proyek Backend. Vercel menjalankan aplikasi yang diekspor dari `BackEnd/index.js` sebagai serverless function. Atur environment variable `VITE_API_URL` di proyek Frontend ke origin URL Backend, misalnya `https://mawas-backend.vercel.app` (tanpa akhiran `/api`), lalu redeploy Frontend. Atur `SUPABASE_URL`, `SUPABASE_KEY` (atau `SUPABASE_ANON_KEY`), `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`, dan `FRONTEND_URL` pada proyek Backend Vercel; jangan memasukkan secret ke Frontend. `SUPABASE_KEY`/`SUPABASE_ANON_KEY` adalah anon key Supabase, sedangkan service role key hanya untuk Backend.
+- **Development:** Jalankan `npm run dev` di `BackEnd` dan `npm run dev` di `FrontEnd` pada dua terminal. Backend tetap berjalan sebagai Express lokal pada port `5000`; Vite meneruskan request `/api/*` ke sana. Jangan set `VITE_API_URL` lokal, karena Frontend development menggunakan proxy Vite.
+- **Google OAuth:** Atur `FRONTEND_URL` pada environment Backend ke origin Frontend aktif (misalnya URL Vercel) agar callback OAuth kembali ke domain yang benar. Untuk lokal, default callback tetap `http://localhost:5173`.
 
 Jangan set `VITE_API_URL` ke `localhost` pada deployment production. Environment variable `VITE_*` hanya untuk konfigurasi publik, bukan untuk secret seperti `GROQ_API_KEY` atau `SUPABASE_SERVICE_ROLE_KEY`.
 

@@ -10,13 +10,14 @@ export type RiskLevel = "kritis" | "waspada" | "normal" | "tidak_tersedia";
 
 export type VerificationStatus = "menunggu" | "terverifikasi" | "perlu_cek";
 
-export type UserRole = "admin" | "operator" | "pembuat_kebijakan";
+export type UserRole = "superadmin" | "operator";
 
 export interface ManagedUser {
   id: string;
   name: string;
   email: string;
-  role: UserRole;
+  role: "operator";
+  avatar_url?: string | null;
   status: "aktif" | "nonaktif";
   registeredAt: string;
   temporaryPassword?: string;

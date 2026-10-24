@@ -68,11 +68,7 @@ export function DashboardHeader({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const roleLabel = user.role === "admin" 
-    ? "Administrator Sistem" 
-    : user.role === "pembuat_kebijakan" 
-      ? "Pembuat Kebijakan" 
-      : "Operator Wilayah";
+  const roleLabel = user.role === "superadmin" ? "Superadmin" : "Operator Wilayah";
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#173e32]/10 bg-[#fbfaf6]/95 backdrop-blur-md px-4 py-3 sm:px-6">
@@ -204,8 +200,10 @@ export function DashboardHeader({
 
           {/* User Avatar Initial */}
           <div className="flex items-center pl-1 border-l border-[#173e32]/10">
-            <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#173e32] text-xs font-bold text-[#f5f1e8]">
-              {(user.username ?? user.name ?? user.email ?? "U").charAt(0).toUpperCase()}
+            <div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#173e32] text-xs font-bold text-[#f5f1e8]">
+              {user.avatar_url
+                ? <img src={user.avatar_url} alt="" className="size-full object-cover" />
+                : (user.username ?? user.name ?? user.email ?? "U").charAt(0).toUpperCase()}
             </div>
           </div>
         </div>
