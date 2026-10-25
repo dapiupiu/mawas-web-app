@@ -1,4 +1,5 @@
 import axios from "axios"
+import type { KnowledgeArticle, ManagedUser } from "@/types/dashboard"
 
 const BASE_URL = import.meta.env.DEV ? "" : (import.meta.env.VITE_API_URL ?? "")
 
@@ -36,6 +37,7 @@ export interface StoredUser {
   role?: string
   username?: string
   name?: string
+  avatar_url?: string | null
 }
 
 export interface RisikoItem {
@@ -132,6 +134,74 @@ export function latestRisikoPerKabupaten(items: RisikoItem[]): RisikoItem[] {
   return Array.from(latest.values())
 }
 
+export interface ArticlePayload {
+  judul: string
+  isi: string
+  kategori: string
+  penulis: string
+  thumbnail_path?: string | null
+}
+
+export interface ArticleMutationResult {
+  article: KnowledgeArticle
+  warning?: string
+}
+
+export const articlesApi = {
+  async getPublished(): Promise<KnowledgeArticle[]> {
+    const { data } = await api.get<{ data: KnowledgeArticle[] }>("/api/articles")
+    return data.data
+  },
+
+  async getPublishedById(id: string): Promise<KnowledgeArticle> {
+    const { data } = await api.get<{ data: KnowledgeArticle }>(
+      `/api/articles/${encodeURIComponent(id)}`,
+    )
+    return data.data
+  },
+
+  async getManage(): Promise<KnowledgeArticle[]> {
+    const { data } = await api.get<{ data: KnowledgeArticle[] }>("/api/articles/manage")
+    return data.data
+  },
+
+  async create(payload: ArticlePayload): Promise<ArticleMutationResult> {
+    const { data } = await api.post<{ data: KnowledgeArticle; warning?: string }>(
+      "/api/articles",
+      payload,
+    )
+    return { article: data.data, warning: data.warning }
+  },
+
+  async update(id: string, payload: ArticlePayload): Promise<ArticleMutationResult> {
+    const { data } = await api.patch<{ data: KnowledgeArticle; warning?: string }>(
+      `/api/articles/${encodeURIComponent(id)}`,
+      payload,
+    )
+    return { article: data.data, warning: data.warning }
+  },
+
+  async delete(id: string): Promise<{ warning?: string }> {
+    const { data } = await api.delete<{ warning?: string }>(
+      `/api/articles/${encodeURIComponent(id)}`,
+    )
+    return { warning: data.warning }
+  },
+
+  async uploadImage(file: File): Promise<{ path: string; url: string }> {
+    const { data } = await api.post<{ data: { path: string; url: string } }>(
+      "/api/articles/upload-image",
+      await file.arrayBuffer(),
+      { headers: { "Content-Type": file.type } },
+    )
+    return data.data
+  },
+
+  async deleteImage(path: string): Promise<void> {
+    await api.delete("/api/articles/upload-image", { data: { path } })
+  },
+}
+
 export interface AnalisisAIResponse {
   kode_kabupaten: string
   nama_kabupaten: string
@@ -167,27 +237,23 @@ function decodeJwt(token: string): Record<string, unknown> | null {
 export const authApi = {
   /** Login email + password → simpan token & user ke localStorage */
   async login(email: string, password: string) {
-    const { data } = await api.post<{ message: string; token: string }>(
+    const { data } = await api.post<{
+      message: string
+      token: string
+      user: { id: string; email: string; nama: string; role: string; avatar_url: string | null }
+    }>(
       "/api/auth/login",
       { email, password },
     )
-    // Decode Supabase JWT untuk ambil id & email tanpa endpoint /me
-    const claims = decodeJwt(data.token)
     const user: StoredUser = {
-      id: (claims?.sub as string) ?? "",
-      email: (claims?.email as string) ?? email,
-      role: (claims?.["user_metadata"] as { role?: string })?.role,
+      id: data.user.id,
+      email: data.user.email,
+      role: data.user.role,
+      name: data.user.nama,
+      username: data.user.nama,
+      avatar_url: data.user.avatar_url,
     }
     return { token: data.token, user }
-  },
-
-  /** Register email + password + username (role default 'operator' di BE) */
-  async register(email: string, password: string, username?: string) {
-    const { data } = await api.post<{
-      message: string
-      user: { id: string; email: string }
-    }>("/api/auth/register", { email, password, username })
-    return { message: data.message, user: data.user }
   },
 
   /** Google OAuth — BE mengembalikan URL redirect Google, lalu browser diarahkan */
@@ -196,12 +262,62 @@ export const authApi = {
     return data.url
   },
 
-  /** Verifikasi akses ke endpoint yang dilindungi middleware authenticateToken & authorizeRoles */
-  async getOperatorDashboard() {
-    const { data } = await api.get<{ message: string; user: StoredUser }>(
-      "/api/auth/operator-dashboard",
+  async updateProfile(payload: { nama?: string; avatar_url?: string }) {
+    const { data } = await api.put<{ user: { id: string; email: string; nama: string; role: string; avatar_url: string | null } }>(
+      "/api/auth/profile",
+      payload,
+    )
+    return data.user
+  },
+
+  async uploadAvatar(file: File) {
+    const { data } = await api.post<{ avatar_url: string }>(
+      "/api/auth/profile/avatar",
+      await file.arrayBuffer(),
+      { headers: { "Content-Type": file.type } },
+    )
+    return data.avatar_url
+  },
+
+  async changePassword(newPassword: string) {
+    const { data } = await api.put<{ message: string }>(
+      "/api/auth/change-password",
+      { newPassword },
     )
     return data
+  },
+
+  async getOperators() {
+    const { data } = await api.get<{ data: ManagedUser[] }>("/api/users/operators")
+    return data.data
+  },
+
+  async createOperator(payload: { email: string; password: string; nama?: string }) {
+    const { data } = await api.post<{ data: ManagedUser }>("/api/users/operators", payload)
+    return data.data
+  },
+
+  async updateOperator(id: string, payload: { nama?: string; status?: "aktif" | "nonaktif" }) {
+    const { data } = await api.patch<{ data: ManagedUser }>(
+      `/api/users/operators/${encodeURIComponent(id)}`,
+      payload,
+    )
+    return data.data
+  },
+
+  async resetOperatorPassword(id: string, password: string) {
+    const { data } = await api.put<{ temporaryPassword: string }>(
+      `/api/users/operators/${encodeURIComponent(id)}/password`,
+      { password },
+    )
+    return data.temporaryPassword
+  },
+
+  async deleteOperator(id: string) {
+    const { data } = await api.delete<{ data: ManagedUser }>(
+      `/api/users/operators/${encodeURIComponent(id)}`,
+    )
+    return data.data
   },
 
   logout() {
@@ -237,16 +353,53 @@ export function isAuthenticated() {
 export function checkAndStoreOAuthCallback(): boolean {
   if (typeof window === "undefined") return false
   const hash = window.location.hash
+  const params = new URLSearchParams(hash.replace(/^#/, ""))
+  const queryParams = new URLSearchParams(window.location.search)
+  const oauthError = params.get("error_code") || queryParams.get("error_code") || params.get("error") || queryParams.get("error")
+  if (oauthError) {
+    const errorDescription = params.get("error_description") || queryParams.get("error_description") || ""
+    const isRegistrationRequired = oauthError === "signup_disabled"
+      || oauthError === "user_not_found"
+      || /signup disabled|user not allowed|not allowed to sign up/i.test(errorDescription)
+    const errorMessage = isRegistrationRequired
+      ? "Akun Google belum terdaftar. Minta Superadmin mendaftarkan akun dengan email ini terlebih dahulu."
+      : oauthError === "user_banned"
+        ? "Akses akun ini telah dicabut dan statusnya nonaktif. Hubungi Superadmin."
+        : "Login Google gagal. Pastikan akun sudah terdaftar dan coba lagi."
+    sessionStorage.setItem("mawas_oauth_notice", errorMessage)
+    localStorage.removeItem("mawas_token")
+    localStorage.removeItem("mawas_user")
+    window.history.replaceState(null, "", window.location.pathname)
+    return false
+  }
   if (hash && hash.includes("access_token=")) {
     try {
-      const params = new URLSearchParams(hash.replace(/^#/, ""))
       const token = params.get("access_token")
       if (token) {
         const claims = decodeJwt(token)
+        const metadata = claims?.["user_metadata"] as {
+          role?: string
+          nama?: string
+          name?: string
+          avatar_url?: string
+        } | undefined
+        if (metadata?.role !== "superadmin" && metadata?.role !== "operator") {
+          sessionStorage.setItem(
+            "mawas_oauth_notice",
+            "Akun Google belum terdaftar di Mawas. Minta Superadmin membuat akun dengan email ini terlebih dahulu.",
+          )
+          localStorage.removeItem("mawas_token")
+          localStorage.removeItem("mawas_user")
+          window.history.replaceState(null, "", window.location.pathname)
+          return false
+        }
         const user: StoredUser = {
           id: (claims?.sub as string) ?? "",
           email: (claims?.email as string) ?? "",
-          role: (claims?.["user_metadata"] as { role?: string })?.role ?? "operator",
+          role: metadata?.role,
+          name: metadata?.nama || metadata?.name,
+          username: metadata?.nama || metadata?.name,
+          avatar_url: metadata?.avatar_url || null,
         }
         saveSession(token, user)
         window.history.replaceState(null, "", window.location.pathname)
@@ -262,76 +415,67 @@ export function checkAndStoreOAuthCallback(): boolean {
 // ─── Risiko endpoints ─────────────────────────────────────────────────────────
 
 let cachedRisikoItems: RisikoItem[] | null = null
-let cachedFeIdByCode: Promise<Map<string, string>> | null = null
-
-async function getStaticFeIdByCode(): Promise<Map<string, string>> {
-  if (!cachedFeIdByCode) {
-    cachedFeIdByCode = (async () => {
-      const idByCode = new Map<string, string>()
-      try {
-        const response = await fetch("/data/risiko_kabupaten_terbaru.json")
-        if (!response.ok) {
-          throw new Error(`Status ${response.status}`)
-        }
-        const json = await response.json()
-        const items = Array.isArray(json) ? json : json.data || []
-        for (const item of items as RiskApiItem[]) {
-          if (item.kode_kabupaten && item.id_fe) {
-            idByCode.set(item.kode_kabupaten, item.id_fe)
-          }
-        }
-      } catch (error) {
-        console.warn("Gagal memuat indeks id_fe untuk mencocokkan risiko ke geometri peta.", error)
-      }
-      return idByCode
-    })()
-  }
-  return cachedFeIdByCode
-}
+let cachedRisikoRequest: Promise<RisikoItem[]> | null = null
 
 export const risikoApi = {
-  /** Fetch risiko dari backend; JSON lokal hanya menjadi fallback saat backend gagal. */
+  /** Ambil seluruh snapshot risiko dari Supabase melalui Backend. */
   async getAllRisiko(): Promise<RisikoItem[]> {
-    if (cachedRisikoItems && cachedRisikoItems.length > 0) {
+    if (cachedRisikoItems) {
       return cachedRisikoItems
     }
+    if (cachedRisikoRequest) {
+      return cachedRisikoRequest
+    }
 
-    try {
+    cachedRisikoRequest = (async () => {
       const { data } = await api.get<{
         status: string
         total: number
         data: RiskApiItem[]
-      }>("/api/risiko", { timeout: 3000 })
-      if (data && Array.isArray(data.data)) {
-        const feIdByCode = await getStaticFeIdByCode()
-        const normalizedItems = data.data.map((item) => {
-          const normalized = normalizeRiskItem(item, true)
-          return {
-            ...normalized,
-            id_fe: normalized.id_fe || feIdByCode.get(normalized.kode_kabupaten),
-          }
-        })
-        cachedRisikoItems = normalizedItems
-        return normalizedItems
+      }>("/api/risiko", { timeout: 20000 })
+      if (!data || !Array.isArray(data.data)) {
+        throw new Error("Respons data risiko dari server tidak valid.")
       }
-    } catch (error) {
-      console.warn("Backend risiko tidak tersedia; mencoba data JSON lokal.", error)
-    }
+      const normalizedItems = data.data.map((item) => normalizeRiskItem(item, true))
+      cachedRisikoItems = normalizedItems
+      return normalizedItems
+    })()
 
     try {
-      const response = await fetch("/data/risiko_kabupaten_terbaru.json")
-      if (response.ok) {
-        const json = await response.json()
-        const items = Array.isArray(json) ? json : json.data || []
-        const normalizedItems = items.map((item: RiskApiItem) => normalizeRiskItem(item))
-        cachedRisikoItems = normalizedItems
-        return normalizedItems
-      }
-    } catch (err) {
-      console.warn("Gagal membaca berkas risiko_kabupaten_terbaru.json:", err)
+      return await cachedRisikoRequest
+    } finally {
+      cachedRisikoRequest = null
     }
+  },
 
-    return []
+  async importPredictions(payload: unknown): Promise<{
+    total: number
+    metadata: {
+      dihasilkanPada: string
+      tanggalAcuan: string
+      horizonHari: number
+      totalKabupaten: number
+      statusData: string
+      catatan?: string
+    }
+  }> {
+    const { data } = await api.post<{
+      total: number
+      metadata: {
+        dihasilkanPada: string
+        tanggalAcuan: string
+        horizonHari: number
+        totalKabupaten: number
+        statusData: string
+        catatan?: string
+      }
+    }>("/api/risiko/import", payload, { timeout: 60000 })
+    if (!data || !Number.isInteger(data.total) || !data.metadata) {
+      throw new Error("Respons import model dari server tidak valid.")
+    }
+    cachedRisikoItems = null
+    cachedRisikoRequest = null
+    return data
   },
 
   async getRiskTrend(provinsi?: string): Promise<RiskTrendResponse> {
@@ -339,7 +483,7 @@ export const risikoApi = {
       "/api/risiko/trend-nasional",
       {
         params: provinsi ? { provinsi } : undefined,
-        timeout: 5000,
+        timeout: 20000,
       },
     )
     if (!data?.data) {
@@ -354,10 +498,11 @@ export const risikoApi = {
       const { data } = await api.get<{
         status: string
         data: RisikoItem
-      }>(`/api/risiko/${kodeOrId}`, { timeout: 3000 })
+      }>(`/api/risiko/${encodeURIComponent(kodeOrId)}`, { timeout: 15000 })
       if (data?.data) return normalizeRiskItem(data.data, true)
-    } catch {
-      // Fallback ke cache/static data
+      throw new Error("Respons detail risiko dari server tidak valid.")
+    } catch (error) {
+      if (!axios.isAxiosError(error) || error.response?.status !== 404) throw error
     }
 
     const all = await this.getAllRisiko()

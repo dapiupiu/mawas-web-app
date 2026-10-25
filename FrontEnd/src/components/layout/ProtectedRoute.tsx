@@ -1,21 +1,23 @@
 import { Navigate, useLocation } from "react-router-dom"
 import type { ReactNode } from "react"
-import { checkAndStoreOAuthCallback, isAuthenticated } from "@/lib/api"
+import { checkAndStoreOAuthCallback, getStoredUser, isAuthenticated, authApi } from "@/lib/api"
 
 /**
  * Route Guard / Middleware Frontend:
- * 1. Menangkap callback OAuth Google (jika ada token di URL hash).
- * 2. Cek token autentikasi di localStorage sebelum halaman dashboard dimuat.
- * 3. Jika belum login / tidak ada token → langsung redirect ke /signin dengan menyimpan intended URL.
+ * Menangkap callback OAuth dan memastikan hanya role terdaftar yang dapat membuka dashboard.
  */
 export function ProtectedRoute({ children }: { children: ReactNode }) {
   const location = useLocation()
 
-  // Cek apakah user baru selesai login via redirect OAuth Google
   checkAndStoreOAuthCallback()
 
-  if (!isAuthenticated()) {
+  const user = getStoredUser()
+  if (!isAuthenticated() || !user) {
     return <Navigate to="/signin" state={{ from: location }} replace />
+  }
+  if (user.role !== "superadmin" && user.role !== "operator") {
+    authApi.logout()
+    return <Navigate to="/signin" replace />
   }
 
   return <>{children}</>

@@ -32,48 +32,79 @@ export function LandingPage() {
             className="contour-field pointer-events-none absolute inset-0 opacity-80"
             aria-hidden="true"
           />
-          <div className="relative mx-auto grid w-full max-w-[1680px] gap-6 lg:gap-8 lg:grid-cols-[0.82fr_1.18fr] lg:items-start lg:justify-between">
+          <div className="relative mx-auto grid w-full max-w-[1680px] gap-6 lg:gap-8 lg:grid-cols-[0.82fr_1.18fr] lg:justify-between">
             <Reveal>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#557267]">
-                  Sistem Peringatan Dini Risiko Kekeringan Pertanian
-                </p>
-                <h1 className="mt-3 text-balance font-serif text-3xl leading-[1.08] tracking-[-0.04em] text-[#173e32] sm:text-5xl lg:text-6xl">
-                  Deteksi dini stres vegetasi, kawal ketersediaan pangan.
-                </h1>
-                <p className="mt-5 text-pretty text-sm leading-relaxed text-[#36564a] sm:text-base sm:leading-7">
-                  Mawas memprediksi risiko stres vegetasi/kekeringan pertanian
-                  per kabupaten untuk 30 hari ke depan, sebagai indikator awal
-                  ancaman terhadap ketersediaan (produksi) pangan dan dukungan
-                  bagi swasembada.
-                </p>
-                <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-                  <Button
-                    asChild
-                    className="min-h-11 bg-[#173e32] px-6 text-[#f5f1e8] hover:bg-[#245542] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b97a16]"
-                  >
-                    <Link to="/peta-risiko">
-                      Jelajahi peta risiko <ArrowUpRight className="ml-1" />
-                    </Link>
-                  </Button>
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="min-h-11 border-[#173e32]/25 bg-transparent px-5 text-[#173e32] hover:bg-[#dce7d7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b97a16]"
-                  >
-                    <a href="#status-wilayah">
-                      Lihat status wilayah <ArrowDown className="ml-1" />
-                    </a>
-                  </Button>
+              <div className="flex h-full flex-col">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#557267]">
+                    Sistem Peringatan Dini Risiko Kekeringan Pertanian
+                  </p>
+                  <h1 className="mt-3 text-balance font-serif text-3xl leading-[1.08] tracking-[-0.04em] text-[#173e32] sm:text-5xl lg:text-6xl">
+                    Deteksi dini stres vegetasi, kawal ketersediaan pangan.
+                  </h1>
+                  <p className="mt-5 text-pretty text-sm leading-relaxed text-[#36564a] sm:text-base sm:leading-7">
+                    Mawas memprediksi risiko stres vegetasi/kekeringan pertanian
+                    per kabupaten/kota untuk 30 hari ke depan, sebagai indikator awal
+                    ancaman terhadap ketersediaan (produksi) pangan dan dukungan
+                    bagi swasembada.
+                  </p>
+                  <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                    <Button
+                      asChild
+                      className="min-h-11 bg-[#173e32] px-6 text-[#f5f1e8] hover:bg-[#245542] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b97a16]"
+                    >
+                      <Link to="/peta-risiko">
+                        Jelajahi peta risiko <ArrowUpRight className="ml-1" />
+                      </Link>
+                    </Button>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="min-h-11 border-[#173e32]/25 bg-transparent px-5 text-[#173e32] hover:bg-[#dce7d7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b97a16]"
+                    >
+                      <a href="#status-wilayah">
+                        Lihat status wilayah <ArrowDown className="ml-1" />
+                      </a>
+                    </Button>
+                  </div>
                 </div>
-
-                <HeroAiForecast />
+                <div className="mt-8 hidden grid-cols-3 gap-4 border-t border-[#173e32]/12 pt-5 lg:mt-12 lg:grid">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[#557267]">
+                      Horizon
+                    </p>
+                    <p className="mt-1 font-serif text-lg font-bold text-[#173e32]">
+                      30 hari
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[#557267]">
+                      Cakupan
+                    </p>
+                    <p className="mt-1 font-serif text-lg font-bold text-[#173e32]">
+                      Kabupaten/Kota
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[#557267]">
+                      Indikator
+                    </p>
+                    <p className="mt-1 font-serif text-lg font-bold text-[#173e32]">
+                      Vegetasi & iklim
+                    </p>
+                  </div>
+                </div>
               </div>
             </Reveal>
             <Reveal>
               <RiskMapPreview />
             </Reveal>
           </div>
+          <Reveal>
+            <div className="relative mx-auto w-full max-w-[1680px]">
+              <HeroAiForecast />
+            </div>
+          </Reveal>
         </section>
 
         <AgriStatusPanel />

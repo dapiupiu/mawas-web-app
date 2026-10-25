@@ -30,7 +30,25 @@ export function DashboardHeader({
   const [showNotifications, setShowNotifications] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  const criticalAlerts = predictions.filter((p) => p.kategori === "kritis");
+  const criticalAlerts = predictions.filter(
+    (prediction) =>
+      prediction.kategori === "kritis" &&
+      prediction.statusVerifikasi !== "terverifikasi",
+  );
+  const verificationStatusStyles = {
+    menunggu: {
+      label: "Menunggu Review",
+      className: "text-[#557267] bg-[#557267]/10",
+    },
+    perlu_cek: {
+      label: "Perlu Cek Lapangan",
+      className: "text-[#b45309] bg-[#b45309]/10",
+    },
+    terverifikasi: {
+      label: "Terverifikasi",
+      className: "text-[#166534] bg-[#166534]/10",
+    },
+  } as const;
   const tabTitles: Record<DashboardTab, { title: string; subtitle: string }> = {
     ringkasan: {
       title: "Ringkasan Eksekutif Wilayah",
@@ -50,7 +68,7 @@ export function DashboardHeader({
     },
     unggah: {
       title: "Pembaruan Model ML",
-      subtitle: "Unggah output prediksi model format JSON untuk sinkronisasi seluruh kabupaten.",
+      subtitle: "Unggah output prediksi model format JSON untuk sinkronisasi seluruh kabupaten/kota.",
     },
     pengguna: {
       title: "Manajemen Akun & Hak Akses",
@@ -68,11 +86,7 @@ export function DashboardHeader({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const roleLabel = user.role === "admin" 
-    ? "Administrator Sistem" 
-    : user.role === "pembuat_kebijakan" 
-      ? "Pembuat Kebijakan" 
-      : "Operator Wilayah";
+  const roleLabel = user.role === "superadmin" ? "Superadmin" : "Operator Wilayah";
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#173e32]/10 bg-[#fbfaf6]/95 backdrop-blur-md px-4 py-3 sm:px-6">
@@ -152,10 +166,10 @@ export function DashboardHeader({
                 <div className="mt-2 divide-y divide-[#173e32]/8 max-h-64 overflow-y-auto">
                   {criticalAlerts.length === 0 ? (
                     <p className="py-4 text-center text-xs text-[#557267]">
-                      Tidak ada kabupaten dengan indikator kritis saat ini.
+                      Tidak ada kabupaten/kota dengan indikator kritis saat ini.
                     </p>
                   ) : (
-                    criticalAlerts.slice(0, 8).map((item) => (
+                    criticalAlerts.map((item) => (
                       <div
                         key={item.id}
                         className="py-2.5 hover:bg-[#f5f1e8]/60 p-2 rounded-lg cursor-pointer transition-colors"
@@ -172,9 +186,12 @@ export function DashboardHeader({
                             {item.skorRisiko !== null ? item.skorRisiko.toFixed(2) : "Data Kosong"}
                           </span>
                         </div>
-                        <p className="mt-1 text-[11px] text-[#36564a]">
-                          {item.provinsi} : status verifikasi {item.statusVerifikasi}
-                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                          <span className="text-[#36564a]">{item.provinsi} ·</span>
+                          <span className={`rounded px-1.5 py-0.5 font-semibold ${verificationStatusStyles[item.statusVerifikasi].className}`}>
+                            {verificationStatusStyles[item.statusVerifikasi].label}
+                          </span>
+                        </div>
                       </div>
                     ))
                   )}
@@ -204,8 +221,10 @@ export function DashboardHeader({
 
           {/* User Avatar Initial */}
           <div className="flex items-center pl-1 border-l border-[#173e32]/10">
-            <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#173e32] text-xs font-bold text-[#f5f1e8]">
-              {(user.username ?? user.name ?? user.email ?? "U").charAt(0).toUpperCase()}
+            <div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#173e32] text-xs font-bold text-[#f5f1e8]">
+              {user.avatar_url
+                ? <img src={user.avatar_url} alt="" className="size-full object-cover" />
+                : (user.username ?? user.name ?? user.email ?? "U").charAt(0).toUpperCase()}
             </div>
           </div>
         </div>

@@ -9,11 +9,11 @@ import {
   MapPinned,
   Sprout,
   ShieldCheck,
+  Building2
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { BrandMark } from "@/components/landing/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { authApi, saveSession } from "@/lib/api";
@@ -23,7 +23,7 @@ const slides = [
     icon: MapPinned,
     label: "Peta Risiko Wilayah",
     title: "Baca kondisi wilayah dengan konteks spasial yang jelas.",
-    body: "Pantau indikator vegetasi satelit FAPAR dan variabel iklim dari tingkat provinsi hingga kabupaten.",
+    body: "Pantau indikator vegetasi satelit FAPAR dan variabel iklim dari tingkat provinsi hingga kabupaten/kota.",
     accentGlow:
       "radial-gradient(ellipse at 30% 30%, rgba(190, 213, 173, 0.28) 0%, transparent 65%)",
   },
@@ -142,7 +142,7 @@ function AuthCarousel() {
 
   return (
     <aside
-      className="relative hidden min-h-[620px] flex-col justify-between overflow-hidden rounded-2xl bg-[#173e32] p-8 text-[#f5f1e8] lg:flex"
+      className="relative hidden min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-[#173e32] p-6 text-[#f5f1e8] lg:flex"
       aria-label="Informasi Ruang Kerja Mawas"
     >
       <div
@@ -162,12 +162,15 @@ function AuthCarousel() {
         />
       </AnimatePresence>
 
-      <div className="relative flex items-center gap-2.5">
-        <BrandMark className="size-8" />
-        <span className="font-serif text-lg font-bold tracking-tight text-[#f5f1e8]">Mawas</span>
+      <div className="relative">
+        <img
+          src="/logo-mawas/PNG/rectangle/MAWAS-rectangle-cream.png"
+          alt="Mawas"
+          className="h-8 w-auto object-contain"
+        />
       </div>
 
-      <div className="relative mt-auto flex min-h-[300px] flex-col justify-end">
+      <div className="relative mt-auto flex min-h-0 flex-col justify-end">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeSlide}
@@ -181,7 +184,7 @@ function AuthCarousel() {
               <Icon className="size-3.5" />
               <span>{currentSlide.label}</span>
             </div>
-            <h2 className="font-serif text-2xl font-bold leading-snug text-[#f5f1e8]">
+            <h2 className="font-serif text-xl font-bold leading-snug text-[#f5f1e8] xl:text-2xl">
               {currentSlide.title}
             </h2>
             <p className="text-xs leading-relaxed text-[#dbe7d5]">
@@ -190,7 +193,7 @@ function AuthCarousel() {
           </motion.div>
         </AnimatePresence>
 
-        <div className="mt-8 flex gap-2">
+        <div className="mt-6 flex gap-2">
           {slides.map((_, idx) => (
             <button
               key={idx}
@@ -215,7 +218,11 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(() => sessionStorage.getItem("mawas_oauth_notice") || "");
+
+  useEffect(() => {
+    sessionStorage.removeItem("mawas_oauth_notice");
+  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -255,27 +262,19 @@ export function LoginPage() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#e8ecdf] p-4 sm:p-7 lg:grid lg:place-items-center">
+    <main className="relative min-h-dvh overflow-hidden bg-[#e8ecdf] p-4 sm:p-6 lg:grid lg:h-dvh lg:min-h-0 lg:place-items-center lg:p-3">
       <div
         className="contour-field pointer-events-none absolute inset-0 opacity-35"
         aria-hidden="true"
       />
 
-      <Link
-        to="/"
-        className="absolute left-6 top-6 z-10 hidden items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#10b981] lg:inline-flex"
-      >
-        <BrandMark className="size-8" />
-        <span className="font-serif font-bold">Mawas</span>
-      </Link>
-
       <motion.div
         initial={reduceMotion ? false : { opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: "easeOut" }}
-        className="relative mx-auto mt-10 grid w-full max-w-7xl overflow-hidden rounded-[1.5rem] border border-white/80 bg-[#fbfaf5] p-2 shadow-[0_24px_70px_rgba(23,62,50,0.16)] lg:mt-0 lg:grid-cols-[minmax(0,1fr)_minmax(400px,1fr)] lg:p-3"
+        className="relative mx-auto mt-10 grid w-full max-w-5xl overflow-hidden rounded-[1.5rem] border border-white/80 bg-[#fbfaf5] p-2 shadow-[0_24px_70px_rgba(23,62,50,0.16)] lg:mt-0 lg:h-[calc(100dvh-3rem)] lg:max-h-[660px] lg:min-h-0 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:p-2"
       >
-        <section className="flex min-h-[620px] flex-col px-5 py-6 sm:px-10 sm:py-8 lg:px-12 lg:py-10">
+        <section className="flex min-h-[560px] flex-col px-5 py-5 sm:px-10 sm:py-7 lg:min-h-0 lg:px-8 lg:py-4">
           <div className="flex items-center justify-between">
             <Link
               to="/"
@@ -284,18 +283,21 @@ export function LoginPage() {
             >
               <ArrowLeft className="size-4" />
             </Link>
-            <div className="flex items-center gap-2 lg:hidden">
-              <BrandMark className="size-7" />
-              <span className="font-serif text-sm font-bold text-[#173e32]">Mawas</span>
+            <div className="lg:hidden">
+              <img
+                src="/logo-mawas/PNG/rectangle/MAWAS-rectangle-cream.png"
+                alt="Mawas"
+                className="h-7 w-auto object-contain"
+              />
             </div>
           </div>
 
-          <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-4">
+          <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-2">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-[#10b981]">
                 Ruang Kerja Mawas
               </span>
-              <h1 className="mt-1 font-serif text-3xl sm:text-4xl font-bold tracking-tight text-[#173e32]">
+              <h1 className="mt-1 font-serif text-3xl font-bold tracking-tight text-[#173e32] sm:text-4xl lg:text-3xl">
                 Masuk ke Akun Anda
               </h1>
               <p className="mt-2 text-xs sm:text-sm text-[#557267] leading-relaxed">
@@ -304,12 +306,12 @@ export function LoginPage() {
             </div>
 
             {/* Google OAuth Button */}
-            <div className="mt-6">
+            <div className="mt-3">
               <Button
                 type="button"
                 variant="outline"
                 disabled={isGoogleLoading}
-                className="h-12 w-full border-[#173e32]/20 bg-white text-xs sm:text-sm font-bold text-[#173e32] hover:bg-[#dce7d7] transition-all shadow-xs"
+                className="h-11 w-full border-[#173e32]/20 bg-white text-xs sm:text-sm font-bold text-[#173e32] hover:bg-[#dce7d7] transition-all shadow-xs"
                 onClick={handleGoogleLogin}
               >
                 {isGoogleLoading ? (
@@ -322,14 +324,14 @@ export function LoginPage() {
             </div>
 
             {/* Divider */}
-            <div className="my-5 flex items-center gap-3 text-xs text-[#557267]">
+            <div className="my-3 flex items-center gap-3 text-xs text-[#557267]">
               <span className="h-px flex-1 bg-[#173e32]/15" />
               <span>atau gunakan email terdaftar</span>
               <span className="h-px flex-1 bg-[#173e32]/15" />
             </div>
 
             {/* Email + Password Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-2.5">
               <Field
                 id="email"
                 label="Email Petugas"
@@ -343,7 +345,7 @@ export function LoginPage() {
 
               <Field
                 id="password"
-                label="Kata Sandi"
+                label="Kata Sandi / Dummy Password"
                 type="password"
                 placeholder="Masukkan kata sandi akun"
                 icon={<LockKeyhole className="size-4" />}
@@ -379,8 +381,19 @@ export function LoginPage() {
               </div>
             )}
 
+            {/* Box Penjelasan Registrasi Tertutup Instansi */}
+            <div className="mt-3 rounded-xl border border-[#173e32]/10 bg-[#f1f6ef] p-2.5 text-xs text-[#36564a] leading-relaxed">
+              <div className="flex items-center gap-2 font-bold text-[#173e32]">
+                <Building2 className="size-4 text-[#10b981]" />
+                <span>Pendaftaran Akun Terpusat (Sistem Tertutup)</span>
+              </div>
+              <p className="mt-1 text-[11px] text-[#557267]">
+                Pendaftaran akun operator tidak dibuka untuk publik. Seluruh akun didaftarkan langsung oleh Superadmin. Hubungi Superadmin instansi Anda jika membutuhkan hak akses baru.
+              </p>
+            </div>
+
             {/* Footer copyright */}
-            <div className="mt-6 text-center text-[11px] text-[#557267]">
+            <div className="mt-3 text-center text-[11px] text-[#557267]">
               <p>© 2026 Mawas Bio-Telemetry Pangan. Hak cipta dilindungi.</p>
             </div>
           </div>

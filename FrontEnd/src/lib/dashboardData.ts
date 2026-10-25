@@ -3,7 +3,6 @@ import type {
   PredictionItem,
   RiskLevel,
   VerificationStatus,
-  ManagedUser,
 } from "@/types/dashboard";
 
 export const INITIAL_ARTICLES: KnowledgeArticle[] = [
@@ -290,62 +289,6 @@ export function saveDashboardArticles(data: KnowledgeArticle[]) {
   localStorage.setItem(ARTICLES_KEY, JSON.stringify(data));
 }
 
-export const INITIAL_USERS: ManagedUser[] = [
-  {
-    id: "usr-admin-01",
-    name: "Super Administrator",
-    email: "admin@mawas.id",
-    role: "admin",
-    status: "aktif",
-    registeredAt: "10 Okt 2026",
-  },
-  {
-    id: "usr-op-01",
-    name: "Ahmad Fauzi (PPL)",
-    email: "operator.sumut@mawas.id",
-    role: "operator",
-    status: "aktif",
-    registeredAt: "14 Okt 2026",
-    temporaryPassword: "Mawas#Sumut2026",
-  },
-  {
-    id: "usr-op-02",
-    name: "Dewi Lestari (Mantri Tani)",
-    email: "operator.jabar@mawas.id",
-    role: "operator",
-    status: "aktif",
-    registeredAt: "18 Okt 2026",
-    temporaryPassword: "Mawas#Jabar2026",
-  },
-  {
-    id: "usr-pk-01",
-    name: "Dr. Hendra Wijaya (Distan)",
-    email: "kebijakan@pertanian.go.id",
-    role: "pembuat_kebijakan",
-    status: "aktif",
-    registeredAt: "20 Okt 2026",
-    temporaryPassword: "Mawas#Policy2026",
-  },
-];
-
-const USERS_KEY = "mawas_dashboard_users_v2";
-
-export function getDashboardUsers(): ManagedUser[] {
-  if (typeof window === "undefined") return INITIAL_USERS;
-  try {
-    const raw = localStorage.getItem(USERS_KEY);
-    if (!raw) return INITIAL_USERS;
-    const parsed = JSON.parse(raw) as ManagedUser[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_USERS;
-  } catch {
-    return INITIAL_USERS;
-  }
-}
-
-export function saveDashboardUsers(data: ManagedUser[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(USERS_KEY, JSON.stringify(data));
-}
 
 /**
  * Format raw model output JSON (from ML service) into dashboard predictions

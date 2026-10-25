@@ -1,25 +1,25 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, CircleAlert, Clock, ShieldCheck, X } from "lucide-react";
-import type { PredictionItem, VerificationStatus } from "@/types/dashboard";
+import { CheckCircle2, CircleAlert, Clock, Loader2, ShieldCheck, X } from "lucide-react";
+import type { DashboardNotice, PredictionItem, VerificationStatus } from "@/types/dashboard";
+import { ModalPortal } from "./ModalPortal";
 
 interface VerifyPredictionModalProps {
   item: PredictionItem | null;
   isOpen: boolean;
   onClose: () => void;
   onSave: (item: PredictionItem) => Promise<void>;
-  onSaveResult: (result: { success: boolean; message: string }) => void;
+  onSaveResult: (result: DashboardNotice) => void;
 }
 
 export function VerifyPredictionModal({ item, isOpen, onClose, onSave, onSaveResult }: VerifyPredictionModalProps) {
   const [status, setStatus] = useState<VerificationStatus>("menunggu");
   const [notes, setNotes] = useState("");
-  const [verifierName, setVerifierName] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!item) return;
     setStatus(item.statusVerifikasi || "menunggu");
     setNotes(item.catatanOperator ?? "");
-    setVerifierName(item.diverifikasiOleh ?? "Petugas Lapangan / PPL");
   }, [item]);
 
   useEffect(() => {
@@ -54,72 +54,79 @@ export function VerifyPredictionModal({ item, isOpen, onClose, onSave, onSaveRes
   ];
 
   return (
-    <div 
-      className="fixed inset-0 z-50 grid place-items-end sm:place-items-center bg-[#091b15]/65 p-0 sm:p-4 backdrop-blur-xs transition-opacity" 
-      role="presentation" 
-      onMouseDown={onClose}
-    >
-      <div 
-        role="dialog" 
-        aria-modal="true" 
-        aria-labelledby="verification-title" 
-        className="flex w-full max-w-lg max-h-[90dvh] flex-col overflow-hidden rounded-t-2xl sm:rounded-xl border border-[#173e32]/20 bg-[#fbfaf6] shadow-2xl"
-        onMouseDown={(event) => event.stopPropagation()}
+    <ModalPortal>
+      <div
+        className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[#091b15]/65 p-4 backdrop-blur-xs transition-opacity"
+        role="presentation"
+        onMouseDown={() => !isSaving && onClose()}
       >
-        {/* Modal Header */}
-        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#173e32]/10 bg-white px-5 py-4 sm:px-6">
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#10b981]">
-              <ShieldCheck className="size-4" />
-              <span>Verifikasi Lapangan</span>
-            </div>
-            <h2 id="verification-title" className="mt-1 font-serif text-xl font-bold text-[#173e32]">
-              {item.namaKabupaten}
-            </h2>
-            <p className="text-xs text-[#557267]">
-              {item.provinsi} (Kode {item.kodeKabupaten})
-            </p>
-          </div>
-          <button 
-            type="button" 
-            onClick={onClose} 
-            className="grid size-11 place-items-center rounded-lg text-[#36564a] hover:bg-[#dce7d7] transition-colors focus-visible:outline-2 focus-visible:outline-[#10b981]" 
-            aria-label="Tutup form verifikasi"
-          >
-            <X className="size-5" />
-          </button>
-        </div>
-
-        {/* Modal Body Form */}
-        <form 
-          className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-5 sm:p-6"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            try {
-              await onSave({
-                ...item,
-                statusVerifikasi: status,
-                catatanOperator: notes.trim() || undefined,
-                diverifikasiOleh: verifierName.trim() || undefined,
-                terakhirDiperbarui: new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date())
-              });
-              onClose();
-              onSaveResult({
-                success: true,
-                message: "Catatan verifikasi berhasil disimpan.",
-              });
-            } catch (error) {
-              console.error("Gagal menyimpan verifikasi ke backend:", error);
-              onClose();
-              onSaveResult({
-                success: false,
-                message: error instanceof Error
-                  ? `Gagal menyimpan verifikasi: ${error.message}`
-                  : "Gagal menyimpan verifikasi. Silakan coba lagi.",
-              });
-            }
-          }}
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="verification-title"
+          className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-[#173e32]/20 bg-[#fbfaf6] shadow-2xl"
+          onMouseDown={(event) => event.stopPropagation()}
         >
+          {/* Modal Header */}
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#173e32]/10 bg-white px-5 py-4 sm:px-6">
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#10b981]">
+                <ShieldCheck className="size-4" />
+                <span>Verifikasi Lapangan</span>
+              </div>
+              <h2 id="verification-title" className="mt-1 font-serif text-xl font-bold text-[#173e32]">
+                {item.namaKabupaten}
+              </h2>
+              <p className="text-xs text-[#557267]">
+                {item.provinsi} (Kode {item.kodeKabupaten})
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => !isSaving && onClose()}
+              disabled={isSaving}
+              className="grid size-11 place-items-center rounded-lg text-[#36564a] hover:bg-[#dce7d7] transition-colors focus-visible:outline-2 focus-visible:outline-[#10b981]"
+              aria-label="Tutup form verifikasi"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+
+          {/* Modal Body Form */}
+          <form
+            className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-5 sm:p-6"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              if (isSaving) return;
+              setIsSaving(true);
+              try {
+                await onSave({
+                  ...item,
+                  statusVerifikasi: status,
+                  catatanOperator: notes.trim() || undefined,
+                  terakhirDiperbarui: new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date())
+                });
+                onClose();
+                onSaveResult({
+                  success: true,
+                  message: status === "menunggu"
+                    ? "Status wilayah dikembalikan ke Menunggu Review."
+                    : status === "terverifikasi"
+                      ? "Wilayah berhasil ditandai Terverifikasi."
+                      : "Status wilayah berhasil diperbarui menjadi Perlu Cek.",
+                });
+              } catch (error) {
+                console.error("Gagal menyimpan verifikasi ke backend:", error);
+                onClose();
+                onSaveResult({
+                  success: false,
+                  message: "Verifikasi belum berhasil disimpan. Silakan coba lagi.",
+                });
+              } finally {
+                setIsSaving(false);
+              }
+            }}
+          >
           {/* Read-Only Model Score Banner */}
           <div className="rounded-xl border border-[#173e32]/12 bg-[#f1f6ef] p-4 text-xs">
             <div className="flex items-center justify-between">
@@ -196,40 +203,28 @@ export function VerifyPredictionModal({ item, isOpen, onClose, onSave, onSaveRes
             />
           </div>
 
-          {/* Nama Petugas Verifikator */}
-          <div>
-            <label htmlFor="verifier-name" className="text-xs font-bold text-[#173e32]">
-              Petugas / Instansi Pelapor
-            </label>
-            <input
-              id="verifier-name"
-              type="text"
-              value={verifierName}
-              onChange={(e) => setVerifierName(e.target.value)}
-              placeholder="Contoh: Mantri Tani / PPL Kec. Panai"
-              className="mt-1.5 min-h-11 w-full rounded-lg border border-[#173e32]/20 bg-white px-3 text-xs sm:text-sm text-[#173e32] placeholder:text-[#557267] focus-visible:outline-2 focus-visible:outline-[#10b981]"
-            />
-          </div>
-
           {/* Actions */}
           <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t border-[#173e32]/10 pt-4">
             <button 
               type="button" 
-              onClick={onClose} 
+              onClick={() => !isSaving && onClose()}
+              disabled={isSaving}
               className="min-h-11 rounded-lg px-4 text-xs font-semibold text-[#36564a] hover:bg-[#dce7d7] transition-colors focus-visible:outline-2 focus-visible:outline-[#10b981]"
             >
               Batal
             </button>
             <button 
               type="submit" 
+              disabled={isSaving}
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#173e32] px-5 text-xs font-bold text-[#f5f1e8] hover:bg-[#245542] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#10b981]"
             >
-              <ShieldCheck className="size-4" />
-              <span>Simpan Catatan Verifikasi</span>
+              {isSaving ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+              <span>{isSaving ? "Menyimpan..." : "Simpan Catatan Verifikasi"}</span>
             </button>
           </div>
-        </form>
+          </form>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }

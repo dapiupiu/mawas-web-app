@@ -5,7 +5,7 @@ import { useParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { SiteHeader } from "@/components/landing/SiteHeader";
 import { Button } from "@/components/ui/button";
-import { getArticleById } from "@/lib/dashboardData";
+import { articlesApi } from "@/lib/api";
 import type { KnowledgeArticle } from "@/types/dashboard";
 
 function articleParagraphs(isi: string) {
@@ -19,11 +19,34 @@ export function ReadArticlePage() {
   const { articleId } = useParams<{ articleId: string }>();
   const [article, setArticle] = useState<KnowledgeArticle | null>(null);
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    setArticle(articleId ? getArticleById(articleId) : null);
-    setReady(true);
+    let active = true;
+    setReady(false);
+    setArticle(null);
+    setLoadError(null);
+    if (!articleId) {
+      setReady(true);
+      return;
+    }
+    articlesApi.getPublishedById(articleId)
+      .then((item) => {
+        if (active) setArticle(item);
+      })
+      .catch((error) => {
+        console.error("Gagal memuat detail artikel dari backend:", error);
+        if (active) {
+          setLoadError("Artikel gagal dimuat dari server. Periksa koneksi lalu coba lagi.");
+        }
+      })
+      .finally(() => {
+        if (active) setReady(true);
+      });
+    return () => {
+      active = false;
+    };
   }, [articleId]);
 
   const paragraphs = useMemo(
@@ -49,8 +72,7 @@ export function ReadArticlePage() {
             </h1>
 
             <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-[#557267]">
-              Artikel mungkin sudah dihapus dari CMS, atau tautannya tidak
-              valid.
+              {loadError || "Artikel mungkin sudah dihapus dari CMS, atau tautannya tidak valid."}
             </p>
 
             <Button

@@ -12,3 +12,16 @@ html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
 .auth-image-placeholder { background: linear-gradient(180deg, rgba(23, 62, 50, 0.1), rgba(23, 62, 50, 0.82)), repeating-radial-gradient(ellipse at 25% 20%, transparent 0 20px, rgba(190, 213, 173, 0.24) 21px 22px, transparent 23px 42px), linear-gradient(135deg, #52795e, #173e32 65%); background-size: auto, 170px 140px, auto; }
 .map-grain { background-image: radial-gradient(#bdd0bd 1px, transparent 1px), linear-gradient(130deg, #eef2e8, #dce7d7); background-size: 24px 24px, auto; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; } }
+@media print {
+  @page { size: A4 portrait; margin: 12mm; }
+  html, body, #root { width: auto !important; min-width: 0 !important; height: auto !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; }
+  body * { visibility: hidden !important; }
+  #root:has(#official-report-doc),
+  #root:has(#official-report-doc) *:has(#official-report-doc) { display: contents !important; }
+  body *:not(:has(#official-report-doc)):not(#official-report-doc):not(#official-report-doc *) { display: none !important; }
+  #official-report-doc,
+  #official-report-doc * { visibility: visible !important; }
+  #official-report-doc { position: static !important; display: block !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; border: 0 !important; box-shadow: none !important; break-inside: auto !important; }
+  #official-report-doc table { width: 100% !important; border-collapse: collapse !important; }
+  #official-report-doc tr { break-inside: avoid !important; }
+}

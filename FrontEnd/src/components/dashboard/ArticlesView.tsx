@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { ModalPortal } from "./ModalPortal";
 import { 
   BookOpen, 
   Pencil, 
@@ -7,13 +8,21 @@ import {
   Trash2, 
   X, 
   Eye, 
-  Tag
+  Tag,
+  LoaderCircle,
+  ImagePlus,
+  FileImage,
 } from "lucide-react";
-import type { KnowledgeArticle } from "@/types/dashboard";
+import { articlesApi } from "@/lib/api";
+import type { DashboardNotice, KnowledgeArticle } from "@/types/dashboard";
 
 interface ArticlesViewProps {
   articles: KnowledgeArticle[];
   onChange: (articles: KnowledgeArticle[]) => void;
+  canManage: boolean;
+  isLoading: boolean;
+  loadError: string | null;
+  onNotify: (notice: DashboardNotice) => void;
 }
 
 const blankDraft = {
@@ -21,19 +30,25 @@ const blankDraft = {
   isi: "",
   kategori: "Panduan Mitigasi",
   thumbnailUrl: "",
+  thumbnailPath: "",
   penulis: "Admin",
 };
 
-export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
+export function ArticlesView({ articles, onChange, canManage, isLoading, loadError, onNotify }: ArticlesViewProps) {
   const [draft, setDraft] = useState(blankDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [previewArticle, setPreviewArticle] = useState<KnowledgeArticle | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState("Semua Kategori");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const closeEditor = () => {
     setDraft(blankDraft);
+    setImageFile(null);
     setEditingId(null);
     setEditorOpen(false);
   };
@@ -44,41 +59,64 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
     return categoryFilter === "Semua Kategori" || a.kategori === categoryFilter;
   });
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!draft.judul.trim() || !draft.isi.trim()) return;
+    if (!draft.judul.trim() || !draft.isi.trim()) {
+      const message = "Lengkapi judul dan isi artikel sebelum menyimpan.";
+      setActionError(message);
+      onNotify({ success: false, message });
+      return;
+    }
 
-    const updatedDate = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(new Date());
+    setIsSaving(true);
+    setActionError(null);
+    let uploadedImagePath: string | undefined;
+    try {
+      if (imageFile) {
+        if (!["image/jpeg", "image/png", "image/webp"].includes(imageFile.type)) {
+          throw new Error("Format gambar harus JPEG, PNG, atau WebP.");
+        }
+        if (imageFile.size > 4 * 1024 * 1024) {
+          throw new Error("Ukuran gambar maksimal 4 MB.");
+        }
+        const uploaded = await articlesApi.uploadImage(imageFile);
+        uploadedImagePath = uploaded.path;
+      }
 
-    if (editingId) {
-      const updated = articles.map((item) =>
-        item.id === editingId
-          ? {
-              ...item,
-              judul: draft.judul.trim(),
-              isi: draft.isi.trim(),
-              kategori: draft.kategori.trim(),
-              thumbnailUrl: draft.thumbnailUrl.trim() || undefined,
-              penulis: draft.penulis.trim() || "Admin",
-              diperbaruiPada: updatedDate,
-            }
-          : item
-      );
-      onChange(updated);
-    } else {
-      const newArticle: KnowledgeArticle = {
-        id: `art-${Date.now()}`,
+      const payload = {
         judul: draft.judul.trim(),
         isi: draft.isi.trim(),
         kategori: draft.kategori.trim() || "Panduan Mitigasi",
-        thumbnailUrl: draft.thumbnailUrl.trim() || undefined,
         penulis: draft.penulis.trim() || "Admin",
-        diperbaruiPada: updatedDate,
+        thumbnail_path: uploadedImagePath || draft.thumbnailPath.trim() || null,
       };
-      onChange([newArticle, ...articles]);
+      const result = editingId
+        ? await articlesApi.update(editingId, payload)
+        : await articlesApi.create(payload);
+      onChange(
+        editingId
+          ? articles.map((item) => item.id === editingId ? result.article : item)
+          : [result.article, ...articles],
+      );
+      const message = result.warning
+        ? `Artikel berhasil ${editingId ? "diperbarui" : "ditambahkan"}, tetapi foto sebelumnya belum dapat dibersihkan.`
+        : `Artikel berhasil ${editingId ? "diperbarui" : "ditambahkan"}.`;
+      onNotify({ success: true, message });
+      closeEditor();
+    } catch {
+      let message = "Artikel belum berhasil disimpan. Periksa kembali isian dan coba lagi.";
+      if (uploadedImagePath) {
+        try {
+          await articlesApi.deleteImage(uploadedImagePath);
+        } catch (cleanupError) {
+          console.error("Gagal membersihkan upload gambar artikel yang tidak tersimpan:", cleanupError);
+        }
+      }
+      setActionError(message);
+      onNotify({ success: false, message });
+    } finally {
+      setIsSaving(false);
     }
-
-    closeEditor();
   };
 
   const handleEdit = (article: KnowledgeArticle) => {
@@ -87,19 +125,45 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
       isi: article.isi,
       kategori: article.kategori,
       thumbnailUrl: article.thumbnailUrl || "",
+      thumbnailPath: article.thumbnailPath || article.thumbnailUrl || "",
       penulis: article.penulis || "Admin",
     });
+    setImageFile(null);
+    setActionError(null);
     setEditingId(article.id);
     setEditorOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    onChange(articles.filter((item) => item.id !== id));
-    setDeleteId(null);
+  const handleDelete = async (id: string) => {
+    setIsDeleting(true);
+    setActionError(null);
+    try {
+      const result = await articlesApi.delete(id);
+      onChange(articles.filter((item) => item.id !== id));
+      setDeleteId(null);
+      const message = result.warning
+        ? "Artikel berhasil dihapus, tetapi foto terkait belum dapat dibersihkan."
+        : "Artikel berhasil dihapus.";
+      onNotify({ success: true, message });
+    } catch {
+      const message = "Artikel belum berhasil dihapus. Silakan coba lagi.";
+      setActionError(message);
+      onNotify({ success: false, message });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
     <div className="space-y-6">
+      {isLoading && (
+        <p role="status" className="text-xs text-[#557267]">Memuat artikel dari CMS…</p>
+      )}
+      {(loadError || actionError) && (
+        <p role="alert" className="rounded-lg border border-[#991b1b]/20 bg-[#fee2e2] p-3 text-xs text-[#991b1b]">
+          {actionError || loadError}
+        </p>
+      )}
       {/* CMS Header Banner */}
       <section className="rounded-xl border border-[#173e32]/15 bg-white p-5 sm:p-6 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -116,10 +180,12 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
             </p>
           </div>
 
-          <button
+          {canManage && <button
             type="button"
             onClick={() => {
               setDraft(blankDraft);
+              setImageFile(null);
+              setActionError(null);
               setEditingId(null);
               setEditorOpen(true);
             }}
@@ -127,7 +193,7 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
           >
             <Plus className="size-4" />
             <span>Tulis Panduan Baru</span>
-          </button>
+          </button>}
         </div>
 
         {/* Filter bar */}
@@ -204,7 +270,7 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
                   <span>Baca Lengkap</span>
                 </button>
 
-                <div className="flex items-center gap-1.5">
+                {canManage && <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => handleEdit(article)}
@@ -222,7 +288,7 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
                   >
                     <Trash2 className="size-3.5" />
                   </button>
-                </div>
+                </div>}
               </div>
             </article>
           ))
@@ -231,18 +297,19 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
 
       {/* Create / Edit Modal Form */}
       {editorOpen && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-end sm:place-items-center bg-[#091b15]/65 p-0 sm:p-4 backdrop-blur-xs"
-          role="presentation"
-          onMouseDown={closeEditor}
-        >
+        <ModalPortal>
           <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="editor-title"
-            className="w-full max-w-xl rounded-t-2xl sm:rounded-xl border border-[#173e32]/20 bg-[#fbfaf6] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
-            onMouseDown={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[#091b15]/65 p-4 backdrop-blur-xs"
+            role="presentation"
+            onMouseDown={isSaving ? undefined : closeEditor}
           >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="editor-title"
+              className="flex max-h-[90dvh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-[#173e32]/20 bg-[#fbfaf6] shadow-2xl"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-[#173e32]/10 bg-white px-5 py-4">
               <h3 id="editor-title" className="font-serif text-lg font-bold text-[#173e32]">
@@ -251,6 +318,7 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
               <button
                 type="button"
                 onClick={closeEditor}
+                disabled={isSaving}
                 className="grid size-11 place-items-center rounded-lg text-[#36564a] hover:bg-[#dce7d7] focus-visible:outline-2 focus-visible:outline-[#10b981]"
                 aria-label="Tutup form"
               >
@@ -311,19 +379,47 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
               </div>
 
               <div>
-                <label htmlFor="art-thumb" className="text-xs font-bold text-[#173e32]">
-                  URL Gambar Berita (Opsional)
+                <label htmlFor="art-image-file" className="text-xs font-bold text-[#173e32]">
+                  Gambar Berita (Opsional)
                 </label>
                 <input
-                  id="art-thumb"
-                  type="url"
-                  value={draft.thumbnailUrl}
-                  onChange={(e) => setDraft({ ...draft, thumbnailUrl: e.target.value })}
-                  placeholder="https://images.unsplash.com/photo-..."
-                  className="mt-1.5 min-h-11 w-full rounded-lg border border-[#173e32]/20 bg-white px-3 text-xs sm:text-sm text-[#173e32] focus-visible:outline-2 focus-visible:outline-[#10b981]"
+                  id="art-image-file"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                  className="sr-only"
                 />
+                <div className="mt-1.5 flex min-h-14 items-center gap-3 rounded-lg border border-dashed border-[#173e32]/25 bg-white p-2.5 transition-colors hover:border-[#10b981]/60">
+                  <label
+                    htmlFor="art-image-file"
+                    className="inline-flex min-h-10 shrink-0 cursor-pointer items-center gap-2 rounded-lg bg-[#dce7d7] px-3.5 text-xs font-bold text-[#173e32] shadow-sm transition-all hover:-translate-y-0.5 hover:bg-[#c9dcc5] hover:shadow-md focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#10b981]"
+                  >
+                    <ImagePlus className="size-4" />
+                    <span>{imageFile ? "Ganti gambar" : "Pilih gambar"}</span>
+                  </label>
+                  <div className="min-w-0 flex-1">
+                    {imageFile ? (
+                      <div className="flex items-center gap-2 text-xs font-medium text-[#173e32]">
+                        <FileImage className="size-4 shrink-0 text-[#10b981]" />
+                        <span className="truncate">{imageFile.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setImageFile(null)}
+                          className="ml-auto grid size-7 shrink-0 place-items-center rounded-md text-[#557267] transition-colors hover:bg-[#fee2e2] hover:text-[#991b1b]"
+                          aria-label="Batalkan pilihan gambar"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      </div>
+                    ) : draft.thumbnailUrl ? (
+                      <span className="block truncate text-xs text-[#557267]">Gambar saat ini digunakan</span>
+                    ) : (
+                      <span className="text-xs text-[#557267]">Belum ada gambar dipilih</span>
+                    )}
+                  </div>
+                </div>
                 <p className="mt-1 text-[11px] text-[#557267]">
-                  Opsional. Tanpa gambar, kartu dan halaman baca tetap tampil berbasis teks.
+                  JPEG, PNG, atau WebP · maksimal 4 MB · tersimpan di bucket artikel-thumbnails.
                 </p>
               </div>
 
@@ -346,36 +442,41 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
                 <button
                   type="button"
                   onClick={closeEditor}
+                  disabled={isSaving}
                   className="min-h-11 rounded-lg px-4 text-xs font-semibold text-[#36564a] hover:bg-[#dce7d7] transition-colors focus-visible:outline-2 focus-visible:outline-[#10b981]"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
+                  disabled={isSaving}
                   className="min-h-11 rounded-lg bg-[#173e32] px-5 text-xs font-bold text-[#f5f1e8] hover:bg-[#245542] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#10b981]"
                 >
-                  {editingId ? "Perbarui Artikel" : "Terbitkan Artikel"}
+                  {isSaving ? <LoaderCircle className="mr-2 inline size-4 animate-spin" /> : null}
+                  {isSaving ? "Menyimpan…" : editingId ? "Perbarui Artikel" : "Terbitkan Artikel"}
                 </button>
               </div>
             </form>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Preview Article Modal */}
       {previewArticle && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-end sm:place-items-center bg-[#091b15]/65 p-0 sm:p-4 backdrop-blur-xs"
-          role="presentation"
-          onMouseDown={() => setPreviewArticle(null)}
-        >
+        <ModalPortal>
           <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="preview-title"
-            className="w-full max-w-xl rounded-t-2xl sm:rounded-xl border border-[#173e32]/20 bg-white shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
-            onMouseDown={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[#091b15]/65 p-4 backdrop-blur-xs"
+            role="presentation"
+            onMouseDown={() => setPreviewArticle(null)}
           >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="preview-title"
+              className="flex max-h-[85dvh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-[#173e32]/20 bg-white shadow-2xl"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
             <div className="flex items-start justify-between border-b border-[#173e32]/10 p-5">
               <div>
                 <span className="text-[11px] font-bold text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded">
@@ -406,44 +507,49 @@ export function ArticlesView({ articles, onChange }: ArticlesViewProps) {
               )}
               <p className="whitespace-pre-line">{previewArticle.isi}</p>
             </div>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Delete Confirmation Modal */}
       {deleteId && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-[#091b15]/65 p-4 backdrop-blur-xs"
-          role="presentation"
-          onMouseDown={() => setDeleteId(null)}
-        >
+        <ModalPortal>
           <div
-            role="alertdialog"
-            className="w-full max-w-md rounded-xl border border-[#991b1b]/20 bg-white p-5 shadow-2xl"
-            onMouseDown={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[#091b15]/65 p-4 backdrop-blur-xs"
+            role="presentation"
+            onMouseDown={() => setDeleteId(null)}
           >
-            <h4 className="font-serif text-lg font-bold text-[#991b1b]">Konfirmasi Hapus Artikel</h4>
-            <p className="mt-2 text-xs sm:text-sm text-[#557267] leading-relaxed">
-              Apakah Anda yakin ingin menghapus artikel panduan ini? Tindakan ini tidak dapat dibatalkan.
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setDeleteId(null)}
-                className="min-h-10 rounded-lg px-4 text-xs font-semibold text-[#36564a] hover:bg-[#dce7d7]"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDelete(deleteId)}
-                className="min-h-10 rounded-lg bg-[#991b1b] px-4 text-xs font-bold text-white hover:bg-[#7f1d1d]"
-              >
-                Hapus Sekarang
-              </button>
+            <div
+              role="alertdialog"
+              className="w-full max-w-md rounded-xl border border-[#991b1b]/20 bg-white p-5 shadow-2xl"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <h4 className="font-serif text-lg font-bold text-[#991b1b]">Konfirmasi Hapus Artikel</h4>
+              <p className="mt-2 text-xs sm:text-sm text-[#557267] leading-relaxed">
+                Apakah Anda yakin ingin menghapus artikel panduan ini? Tindakan ini tidak dapat dibatalkan.
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteId(null)}
+                  disabled={isDeleting}
+                  className="min-h-10 rounded-lg px-4 text-xs font-semibold text-[#36564a] hover:bg-[#dce7d7]"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(deleteId)}
+                  disabled={isDeleting}
+                  className="min-h-10 rounded-lg bg-[#991b1b] px-4 text-xs font-bold text-white hover:bg-[#7f1d1d] disabled:opacity-60"
+                >
+                  {isDeleting ? "Menghapus…" : "Hapus Sekarang"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );
