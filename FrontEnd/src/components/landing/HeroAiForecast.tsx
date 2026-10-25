@@ -95,7 +95,7 @@ export function HeroAiForecast() {
   const thresholdY = height - paddingY - 0.5 * (height - 2 * paddingY);
 
   return (
-    <div className="relative mt-10 w-full select-none sm:mt-12">
+    <div className="relative mt-6 w-full select-none rounded-2xl border border-[#173e32]/10 bg-white/55 p-4 shadow-sm sm:mt-7 sm:p-5">
       {/* Header Minimalis & Fungsional */}
       <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-[#173e32]/10 pb-2.5">
         <div>
@@ -124,7 +124,7 @@ export function HeroAiForecast() {
       <div className="relative mt-3 w-full">
         <svg
           viewBox={`0 0 ${width} ${height}`}
-          className="h-36 w-full overflow-visible sm:h-44"
+          className="h-32 w-full overflow-visible sm:h-40 lg:h-44"
           aria-label="Grafik tren skor risiko aktual"
         >
           <defs>
@@ -256,7 +256,7 @@ export function HeroAiForecast() {
                   }
             }
             transition={{ type: "spring", stiffness: 280, damping: 22 }}
-            className="cursor-pointer w-full sm:max-w-[450px] rounded-xl border border-[#173e32]/12 bg-[#ffffff]/94 p-3.5 shadow-md backdrop-blur-md transition-colors hover:border-[#173e32]/25"
+            className="cursor-pointer w-full sm:max-w-2xl rounded-xl border border-[#173e32]/12 bg-[#ffffff]/94 p-3.5 shadow-md backdrop-blur-md transition-colors hover:border-[#173e32]/25"
           >
             <div className="flex items-start gap-2.5">
               {(trend?.rata_rata_skor || 0) >= 0.5 ? (

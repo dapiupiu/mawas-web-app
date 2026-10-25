@@ -115,8 +115,6 @@ exports.submitVerifikasi = async (req, res) => {
       statusVerifikasi,
       catatan_operator,
       catatanOperator,
-      diverifikasi_oleh,
-      diverifikasiOleh,
     } = req.body;
 
     const code = String(kode_kabupaten || kodeKabupaten || '').trim();
@@ -166,11 +164,34 @@ exports.submitVerifikasi = async (req, res) => {
       status_verifikasi: mapDatabaseVerificationStatus(normalizedStatus),
       catatan_operator: String(catatan_operator ?? catatanOperator ?? '').trim(),
       diverifikasi_oleh: String(
-        diverifikasi_oleh || diverifikasiOleh || req.user?.email || 'Operator'
+        req.user?.user_metadata?.nama ||
+        req.user?.user_metadata?.name ||
+        req.user?.email ||
+        'Operator'
       ).trim(),
       diverifikasi_user_id: req.user?.id || null,
       terakhir_diperbarui: new Date().toISOString(),
     };
+
+    if (normalizedStatus === 'menunggu') {
+      const { error: deleteError } = await supabase
+        .from('verifikasi_risiko')
+        .delete()
+        .eq('kode_kabupaten', code)
+        .eq('tanggal', risk.tanggal)
+        .eq('horizon_hari', Number(risk.horizon_hari) || 30);
+
+      if (deleteError) return res.status(400).json({ error: deleteError.message });
+
+      const kabupaten = await findKabupaten(code);
+      const data = toDashboardPrediction(risk, kabupaten);
+
+      return res.status(200).json({
+        status: 'success',
+        message: 'Catatan verifikasi dihapus dan status dikembalikan ke menunggu review.',
+        data,
+      });
+    }
 
     const { data: savedRows, error: saveError } = await supabase
       .from('verifikasi_risiko')

@@ -11,7 +11,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { getDashboardArticles } from "@/lib/dashboardData";
+import { articlesApi } from "@/lib/api";
 import type { KnowledgeArticle } from "@/types/dashboard";
 import {
   Carousel,
@@ -34,11 +34,22 @@ export function ArticlesSection() {
   const [api, setApi] = useState<CarouselApi>();
   const [canScrollPrev, setCanScrollPrev] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    setArticles(getDashboardArticles());
+    articlesApi.getPublished()
+      .then((items) => {
+        setArticles(items);
+        setLoadError(null);
+      })
+      .catch((error) => {
+        console.error("Gagal memuat artikel publik dari backend:", error);
+        setLoadError("Artikel belum dapat dimuat. Silakan coba lagi nanti.");
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   const scrollPrev = useCallback(() => {
@@ -105,11 +116,13 @@ export function ArticlesSection() {
               />
 
               <p className="mt-3 text-sm font-semibold text-[#173e32]">
-                Belum ada artikel
+                {isLoading ? "Memuat artikel…" : loadError ? "Artikel belum tersedia" : "Belum ada artikel"}
               </p>
 
               <p className="mt-1 text-xs leading-5 text-[#557267]">
-                Tambahkan panduan di CMS dashboard agar daftar ini terisi.
+                {loadError || (isLoading
+                  ? "Mengambil artikel publik dari CMS."
+                  : "Tambahkan panduan di CMS dashboard agar daftar ini terisi.")}
               </p>
             </div>
           </Reveal>

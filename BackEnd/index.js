@@ -28,7 +28,7 @@ app.use(cors({
     return callback(null, Boolean(origin));
   },
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // 0. Route GenAI (Proxy Groq)
 const genaiRoutes = require('./routes/genaiRoutes');
@@ -57,6 +57,10 @@ app.use('/api/intervensi', intervensiRoutes);
 // 6. Route User Management (Khusus SuperAdmin)
 const userRoutes = require('./routes/userRoutes');
 app.use('/api/users', userRoutes);
+
+// 7. CMS Artikel (publikasi publik dan pengelolaan Superadmin)
+const articleRoutes = require('./routes/articleRoutes');
+app.use('/api/articles', articleRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: "Server mawas berjalan lancar!" });

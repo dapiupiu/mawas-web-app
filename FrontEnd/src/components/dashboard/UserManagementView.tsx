@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
-import type { FormEvent } from "react";
-import { isAxiosError } from "axios";
+import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { 
   Users, 
   UserPlus, 
@@ -16,24 +15,29 @@ import {
   Lock,
   Mail,
   User,
-  CheckCircle2
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import type { ManagedUser } from "@/types/dashboard";
+import type { DashboardNotice } from "@/types/dashboard";
 import { authApi } from "@/lib/api";
+import { ModalPortal } from "./ModalPortal";
 
 interface UserManagementViewProps {
   users: ManagedUser[];
-  onUsersChange: (users: ManagedUser[]) => void;
+  onUsersChange: Dispatch<SetStateAction<ManagedUser[]>>;
+  isLoading: boolean;
   loadError?: string | null;
+  onNotify: (notice: DashboardNotice) => void;
 }
 
-export function UserManagementView({ users, onUsersChange, loadError }: UserManagementViewProps) {
+export function UserManagementView({ users, onUsersChange, isLoading, loadError, onNotify }: UserManagementViewProps) {
   const [query, setQuery] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [pendingActions, setPendingActions] = useState<Record<string, "status" | "password">>({});
 
   // Form states for new user registration
   const [formName, setFormName] = useState("");
@@ -75,25 +79,55 @@ export function UserManagementView({ users, onUsersChange, loadError }: UserMana
   };
 
   const handleToggleStatus = async (id: string) => {
+    if (pendingActions[id]) return;
     const target = users.find((u) => u.id === id);
     if (!target) return;
+    const nextStatus = target.status === "aktif" ? "nonaktif" : "aktif";
+    setErrorMsg(null);
+    setPendingActions((current) => ({ ...current, [id]: "status" }));
+    onUsersChange((current) => current.map((user) => user.id === id ? { ...user, status: nextStatus } : user));
     try {
       const updatedUser = await authApi.updateOperator(id, {
-        status: target.status === "aktif" ? "nonaktif" : "aktif",
+        status: nextStatus,
       });
-      onUsersChange(users.map((user) => user.id === id ? updatedUser : user));
-    } catch (error) {
-      setErrorMsg(isAxiosError<{ error?: string }>(error) ? error.response?.data?.error || error.message : "Status akun gagal diperbarui.");
+      onUsersChange((current) => current.map((user) => user.id === id ? updatedUser : user));
+      onNotify({
+        success: true,
+        message: nextStatus === "aktif" ? "Akun operator berhasil diaktifkan." : "Akun operator berhasil dinonaktifkan.",
+      });
+    } catch {
+      onUsersChange((current) => current.map((user) => user.id === id ? { ...user, status: target.status } : user));
+      const message = "Status akun belum berhasil diperbarui. Silakan coba lagi.";
+      setErrorMsg(message);
+      onNotify({ success: false, message });
+    } finally {
+      setPendingActions((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
     }
   };
 
   const handleResetPassword = async (id: string) => {
+    if (pendingActions[id]) return;
     const newPw = generateDummyPassword();
+    setErrorMsg(null);
+    setPendingActions((current) => ({ ...current, [id]: "password" }));
     try {
       const savedPassword = await authApi.resetOperatorPassword(id, newPw);
-      onUsersChange(users.map((user) => user.id === id ? { ...user, temporaryPassword: savedPassword } : user));
-    } catch (error) {
-      setErrorMsg(isAxiosError<{ error?: string }>(error) ? error.response?.data?.error || error.message : "Password gagal diperbarui.");
+      onUsersChange((current) => current.map((user) => user.id === id ? { ...user, temporaryPassword: savedPassword } : user));
+      onNotify({ success: true, message: "Kata sandi sementara berhasil diperbarui." });
+    } catch {
+      const message = "Kata sandi sementara belum berhasil diperbarui. Silakan coba lagi.";
+      setErrorMsg(message);
+      onNotify({ success: false, message });
+    } finally {
+      setPendingActions((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
     }
   };
 
@@ -102,12 +136,13 @@ export function UserManagementView({ users, onUsersChange, loadError }: UserMana
     setIsDeleting(true);
     try {
       await authApi.deleteOperator(id);
-      onUsersChange(users.filter((user) => user.id !== id));
+      onUsersChange((current) => current.filter((user) => user.id !== id));
       setDeleteId(null);
-      setSuccessMsg("Akun operator berhasil dihapus dari Supabase Auth. Riwayat verifikasi tetap tersimpan.");
-      window.setTimeout(() => setSuccessMsg(null), 6000);
-    } catch (error) {
-      setErrorMsg(isAxiosError<{ error?: string }>(error) ? error.response?.data?.error || error.message : "Akun operator gagal dihapus.");
+      onNotify({ success: true, message: "Akun operator berhasil dihapus." });
+    } catch {
+      const message = "Akun operator belum berhasil dihapus. Silakan coba lagi.";
+      setErrorMsg(message);
+      onNotify({ success: false, message });
     } finally {
       setIsDeleting(false);
     }
@@ -124,22 +159,27 @@ export function UserManagementView({ users, onUsersChange, loadError }: UserMana
 
     if (!email || !password) {
       setErrorMsg("Email dan password wajib diisi.");
+      onNotify({ success: false, message: "Email dan kata sandi wajib diisi." });
       setIsSubmitting(false);
       return;
     }
 
     if (users.some((u) => u.email.toLowerCase() === email)) {
       setErrorMsg("Email ini sudah terdaftar di sistem.");
+      onNotify({ success: false, message: "Email tersebut sudah terdaftar. Gunakan email lain." });
       setIsSubmitting(false);
       return;
     }
 
     try {
       const newUser = await authApi.createOperator({ email, password, ...(name ? { nama: name } : {}) });
-      onUsersChange([newUser, ...users]);
+      onUsersChange((current) => [newUser, ...current]);
       setCreatedSummary(newUser);
-    } catch (error) {
-      setErrorMsg(isAxiosError<{ error?: string }>(error) ? error.response?.data?.error || error.message : "Gagal mendaftarkan akun.");
+      onNotify({ success: true, message: "Akun operator berhasil didaftarkan." });
+    } catch {
+      const message = "Akun operator belum berhasil didaftarkan. Periksa kembali data dan coba lagi.";
+      setErrorMsg(message);
+      onNotify({ success: false, message });
     } finally {
       setIsSubmitting(false);
     }
@@ -179,24 +219,24 @@ export function UserManagementView({ users, onUsersChange, loadError }: UserMana
         <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-[#173e32]/10 pt-4 text-xs">
           <div className="rounded-lg bg-[#fbfaf6] p-3 border border-[#173e32]/10">
             <span className="text-[#557267]">Total Operator:</span>
-            <p className="font-mono text-xl font-bold text-[#173e32]">{users.length}</p>
+            <p className="font-mono text-xl font-bold text-[#173e32]">{isLoading ? "…" : users.length}</p>
           </div>
           <div className="rounded-lg bg-[#fbfaf6] p-3 border border-[#173e32]/10">
             <span className="text-[#557267]">Operator Lapangan:</span>
             <p className="font-mono text-xl font-bold text-[#10b981]">
-              {users.filter((u) => u.role === "operator").length}
+              {isLoading ? "…" : users.filter((u) => u.role === "operator").length}
             </p>
           </div>
           <div className="rounded-lg bg-[#fbfaf6] p-3 border border-[#173e32]/10">
             <span className="text-[#557267]">Akun Aktif:</span>
             <p className="font-mono text-xl font-bold text-[#166534]">
-              {users.filter((u) => u.status === "aktif").length}
+              {isLoading ? "…" : users.filter((u) => u.status === "aktif").length}
             </p>
           </div>
           <div className="rounded-lg bg-[#fbfaf6] p-3 border border-[#173e32]/10">
             <span className="text-[#557267]">Akun Nonaktif:</span>
             <p className="font-mono text-xl font-bold text-[#166534]">
-              {users.filter((u) => u.status === "nonaktif").length}
+              {isLoading ? "…" : users.filter((u) => u.status === "nonaktif").length}
             </p>
           </div>
         </div>
@@ -213,13 +253,6 @@ export function UserManagementView({ users, onUsersChange, loadError }: UserMana
           <span>{errorMsg}</span>
         </div>
       )}
-      {successMsg && (
-        <div role="status" aria-live="polite" className="flex items-start gap-2 rounded-lg border border-[#166534]/25 bg-[#dcfce7] p-3 text-xs text-[#14532d]">
-          <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-
       {/* Search */}
       <div className="flex flex-col gap-3 rounded-xl border border-[#173e32]/12 bg-white p-3.5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <label className="relative block flex-1 max-w-md">
@@ -250,7 +283,16 @@ export function UserManagementView({ users, onUsersChange, loadError }: UserMana
               </tr>
             </thead>
             <tbody className="divide-y divide-[#173e32]/10 bg-white">
-              {filteredUsers.length === 0 ? (
+              {isLoading && filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-sm text-[#557267]">
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="size-4 animate-spin text-[#10b981]" />
+                      Memuat akun operator…
+                    </span>
+                  </td>
+                </tr>
+              ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-sm text-[#557267]">
                     Tidak ada akun yang sesuai dengan pencarian.
@@ -301,6 +343,7 @@ export function UserManagementView({ users, onUsersChange, loadError }: UserMana
                         <button
                           type="button"
                           onClick={() => handleToggleStatus(u.id)}
+                          disabled={Boolean(pendingActions[u.id])}
                           className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold transition-colors ${
                             u.status === "aktif"
                               ? "bg-[#166534]/10 text-[#166534] hover:bg-[#166534]/20"
@@ -308,8 +351,10 @@ export function UserManagementView({ users, onUsersChange, loadError }: UserMana
                           }`}
                           title="Klik untuk mengubah status"
                         >
-                          <span className={`size-1.5 rounded-full ${u.status === "aktif" ? "bg-[#166534]" : "bg-gray-500"}`} />
-                          <span className="capitalize">{u.status}</span>
+                          {pendingActions[u.id] === "status"
+                            ? <Loader2 className="size-3 animate-spin" />
+                            : <span className={`size-1.5 rounded-full ${u.status === "aktif" ? "bg-[#166534]" : "bg-gray-500"}`} />}
+                          <span className="capitalize">{pendingActions[u.id] === "status" ? "Menyimpan…" : u.status}</span>
                         </button>
                       </td>
 
@@ -341,10 +386,13 @@ export function UserManagementView({ users, onUsersChange, loadError }: UserMana
                           <button
                             type="button"
                             onClick={() => handleResetPassword(u.id)}
-                            className="grid size-8 place-items-center rounded-lg border border-[#173e32]/15 text-[#557267] hover:text-[#173e32] hover:bg-[#dce7d7] transition-colors"
-                            title="Generate ulang password dummy"
+                            disabled={Boolean(pendingActions[u.id])}
+                            className="grid size-8 place-items-center rounded-lg border border-[#173e32]/15 text-[#557267] hover:text-[#173e32] hover:bg-[#dce7d7] transition-colors disabled:cursor-wait disabled:opacity-60"
+                            title={pendingActions[u.id] === "password" ? "Menyimpan password baru…" : "Generate ulang password dummy"}
                           >
-                            <RefreshCw className="size-3.5" />
+                            {pendingActions[u.id] === "password"
+                              ? <Loader2 className="size-3.5 animate-spin" />
+                              : <RefreshCw className="size-3.5" />}
                           </button>
 
                           <button
@@ -368,18 +416,19 @@ export function UserManagementView({ users, onUsersChange, loadError }: UserMana
 
       {/* Modal: Daftarkan Akun Baru */}
       {modalOpen && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-end sm:place-items-center bg-[#091b15]/65 p-0 sm:p-4 backdrop-blur-xs"
-          role="presentation"
-          onMouseDown={() => setModalOpen(false)}
-        >
+        <ModalPortal>
           <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="register-dialog-title"
-            className="w-full max-w-lg rounded-t-2xl sm:rounded-xl border border-[#173e32]/20 bg-[#fbfaf6] shadow-2xl overflow-hidden"
-            onMouseDown={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[#091b15]/65 p-4 backdrop-blur-xs"
+            role="presentation"
+            onMouseDown={() => setModalOpen(false)}
           >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="register-dialog-title"
+              className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-xl border border-[#173e32]/20 bg-[#fbfaf6] shadow-2xl"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
             {/* Header Modal */}
             <div className="flex items-center justify-between border-b border-[#173e32]/10 bg-white px-5 py-4">
               <div className="flex items-center gap-2">
@@ -549,46 +598,49 @@ export function UserManagementView({ users, onUsersChange, loadError }: UserMana
                 </div>
               </form>
             )}
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Permanent User Deletion Confirmation */}
       {deleteId && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-[#091b15]/65 p-4 backdrop-blur-xs"
-          role="presentation"
-          onMouseDown={() => !isDeleting && setDeleteId(null)}
-        >
+        <ModalPortal>
           <div
-            role="alertdialog"
-            className="w-full max-w-md rounded-xl border border-[#991b1b]/20 bg-white p-5 shadow-2xl"
-            onMouseDown={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[#091b15]/65 p-4 backdrop-blur-xs"
+            role="presentation"
+            onMouseDown={() => !isDeleting && setDeleteId(null)}
           >
-            <h4 className="font-serif text-lg font-bold text-[#991b1b]">Hapus Akun Operator Permanen?</h4>
-            <p className="mt-2 text-xs sm:text-sm text-[#557267] leading-relaxed">
-              Akun ini akan dihapus dari Supabase Auth dan tidak dapat dipulihkan. Riwayat verifikasinya tetap disimpan, tetapi tautan ke akun ini akan dilepas. Email dapat didaftarkan kembali setelah penghapusan.
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setDeleteId(null)}
-                disabled={isDeleting}
-                className="min-h-10 rounded-lg px-4 text-xs font-semibold text-[#36564a] hover:bg-[#dce7d7]"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDelete(deleteId)}
-                disabled={isDeleting}
-                className="min-h-10 rounded-lg bg-[#991b1b] px-4 text-xs font-bold text-white hover:bg-[#7f1d1d] disabled:opacity-60"
-              >
-                {isDeleting ? "Menghapus Akun..." : "Hapus Permanen"}
-              </button>
+            <div
+              role="alertdialog"
+              className="w-full max-w-md rounded-xl border border-[#991b1b]/20 bg-white p-5 shadow-2xl"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <h4 className="font-serif text-lg font-bold text-[#991b1b]">Hapus Akun Operator Permanen?</h4>
+              <p className="mt-2 text-xs sm:text-sm text-[#557267] leading-relaxed">
+                Akun ini akan dihapus dari Supabase Auth dan tidak dapat dipulihkan. Riwayat verifikasinya tetap disimpan, tetapi tautan ke akun ini akan dilepas. Email dapat didaftarkan kembali setelah penghapusan.
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteId(null)}
+                  disabled={isDeleting}
+                  className="min-h-10 rounded-lg px-4 text-xs font-semibold text-[#36564a] hover:bg-[#dce7d7]"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(deleteId)}
+                  disabled={isDeleting}
+                  className="min-h-10 rounded-lg bg-[#991b1b] px-4 text-xs font-bold text-white hover:bg-[#7f1d1d] disabled:opacity-60"
+                >
+                  {isDeleting ? "Menghapus Akun..." : "Hapus Permanen"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

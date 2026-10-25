@@ -1,59 +1,53 @@
-import { useState, useRef } from "react";
+import { useMemo, useState, useRef } from "react";
 import type { ChangeEvent, DragEvent } from "react";
 import { 
   UploadCloud, 
   FileCheck2, 
-  AlertCircle, 
   Database, 
-  CheckCircle2, 
   ShieldCheck,
   RefreshCw
 } from "lucide-react";
-import type { PredictionItem, VerificationStatus } from "@/types/dashboard";
+import type { DashboardNotice, PredictionItem } from "@/types/dashboard";
+import { risikoApi } from "@/lib/api";
 import { 
   parseModelJsonToPredictions, 
-  getDashboardModelMeta, 
-  saveDashboardModelMeta, 
   type ModelMetadata 
 } from "@/lib/dashboardData";
 
 interface UploadModelViewProps {
   currentPredictions: PredictionItem[];
-  onModelUpdated: (newPredictions: PredictionItem[], meta: ModelMetadata) => void;
+  onModelUpdated: () => Promise<void>;
+  onNotify: (notice: DashboardNotice) => void;
 }
 
-export function UploadModelView({ currentPredictions, onModelUpdated }: UploadModelViewProps) {
+export function UploadModelView({ currentPredictions, onModelUpdated, onNotify }: UploadModelViewProps) {
   const [isDragging, setIsDragging] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [parsedResult, setParsedResult] = useState<{
     predictions: PredictionItem[];
     metadata: ModelMetadata;
     filename: string;
+    payload: unknown;
   } | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const activeMeta = getDashboardModelMeta();
+  const activeMeta = useMemo(() => {
+    const latest = currentPredictions.reduce<PredictionItem | null>((current, item) => {
+      if (!current || (item.tanggal || "") > (current.tanggal || "")) return item;
+      return current;
+    }, null);
+    return {
+      tanggalAcuan: latest?.tanggal || "Data belum tersedia",
+      horizonHari: latest?.horizonHari || 30,
+      statusData: latest?.statusData || "—",
+      totalKabupaten: currentPredictions.length,
+    };
+  }, [currentPredictions]);
 
   // Create verification preservation map
-  const existingMap = new Map<string, { status: VerificationStatus; catatan?: string; diverifikasiOleh?: string }>();
-  for (const item of currentPredictions) {
-    if (item.statusVerifikasi !== "menunggu" || item.catatanOperator) {
-      existingMap.set(item.kodeKabupaten, {
-        status: item.statusVerifikasi,
-        catatan: item.catatanOperator,
-        diverifikasiOleh: item.diverifikasiOleh,
-      });
-    }
-  }
-
   const processFile = (file: File) => {
-    setErrorMsg(null);
-    setSuccessMsg(null);
-
-    if (!file.name.endsWith(".json")) {
-      setErrorMsg("Format file harus berupa .json (output model prediksi).");
+    if (!file.name.toLowerCase().endsWith(".json")) {
+      onNotify({ success: false, message: "Pilih berkas JSON dengan format prediksi Mawas." });
       return;
     }
 
@@ -62,19 +56,21 @@ export function UploadModelView({ currentPredictions, onModelUpdated }: UploadMo
       try {
         const text = e.target?.result as string;
         const json = JSON.parse(text);
-        const { predictions, metadata } = parseModelJsonToPredictions(json, existingMap);
+        const { predictions, metadata } = parseModelJsonToPredictions(json);
 
         setParsedResult({
           predictions,
           metadata,
           filename: file.name,
+          payload: json,
         });
-      } catch (err: any) {
-        setErrorMsg(err.message || "Gagal memproses file JSON. Pastikan struktur data valid.");
+      } catch (error) {
+        console.error("Berkas model tidak dapat diproses:", error);
+        onNotify({ success: false, message: "Berkas tidak dapat dibaca. Periksa format dan isi berkas JSON." });
       }
     };
     reader.onerror = () => {
-      setErrorMsg("Terjadi kegagalan membaca file fisik.");
+      onNotify({ success: false, message: "Berkas tidak dapat dibaca. Silakan pilih berkas lain." });
     };
     reader.readAsText(file);
   };
@@ -93,19 +89,25 @@ export function UploadModelView({ currentPredictions, onModelUpdated }: UploadMo
     }
   };
 
-  const handleApplyUpdate = () => {
+  const handleApplyUpdate = async () => {
     if (!parsedResult) return;
     setLoading(true);
-
+    let savedToDatabase = false;
     try {
-      saveDashboardModelMeta(parsedResult.metadata);
-      onModelUpdated(parsedResult.predictions, parsedResult.metadata);
-      setSuccessMsg(
-        `Sukses menerapkan model dari ${parsedResult.filename}. Sebanyak ${parsedResult.predictions.length} kabupaten berhasil diperbarui ke dalam sistem.`
-      );
+      const result = await risikoApi.importPredictions(parsedResult.payload);
+      savedToDatabase = true;
+      await onModelUpdated();
+      onNotify({
+        success: true,
+        message: `Pembaruan model berhasil. ${result.total} kabupaten/kota kini menggunakan data terbaru.`,
+      });
       setParsedResult(null);
-    } catch (err: any) {
-      setErrorMsg("Gagal menyimpan data model: " + err.message);
+    } catch (error) {
+      console.error("Gagal menerapkan pembaruan model:", error);
+      const message = savedToDatabase
+        ? "Pembaruan model tersimpan, tetapi daftar belum berhasil diperbarui. Muat ulang halaman untuk melihat data terbaru."
+        : "Pembaruan model belum berhasil disimpan. Periksa berkas dan coba lagi.";
+      onNotify({ success: false, message });
     } finally {
       setLoading(false);
     }
@@ -114,19 +116,20 @@ export function UploadModelView({ currentPredictions, onModelUpdated }: UploadMo
   // Helper to load bundled file
   const handleLoadBundledLatest = async () => {
     setLoading(true);
-    setErrorMsg(null);
     try {
       const res = await fetch("/data/risiko_kabupaten_terbaru.json");
-      if (!res.ok) throw new Error("Gagal mengambil file risiko_kabupaten_terbaru.json dari server.");
+      if (!res.ok) throw new Error("Bundled model request failed");
       const json = await res.json();
-      const { predictions, metadata } = parseModelJsonToPredictions(json, existingMap);
+      const { predictions, metadata } = parseModelJsonToPredictions(json);
       setParsedResult({
         predictions,
         metadata,
         filename: "risiko_kabupaten_terbaru.json (Bundled ML Service)",
+        payload: json,
       });
-    } catch (err: any) {
-      setErrorMsg("Gagal memuat file lokal: " + err.message);
+    } catch (error) {
+      console.error("Gagal memuat model bawaan:", error);
+      onNotify({ success: false, message: "Model bawaan belum dapat dimuat. Silakan coba lagi." });
     } finally {
       setLoading(false);
     }
@@ -144,7 +147,7 @@ export function UploadModelView({ currentPredictions, onModelUpdated }: UploadMo
           Pembaruan Output Model ML (JSON)
         </h2>
         <p className="mt-2 max-w-2xl text-xs sm:text-sm text-[#557267] leading-relaxed">
-          Unggah file output prediksi model terbaru dari tim Data Science/ML (contoh: <code className="font-mono bg-[#f5f1e8] px-1 py-0.5 rounded text-[#173e32]">risiko_kabupaten_terbaru.json</code>). Sistem akan memperbarui prediksi risiko seluruh kabupaten tanpa menghapus catatan verifikasi lapangan yang sudah ada.
+          Unggah file output prediksi model terbaru dari tim Data Science/ML (contoh: <code className="font-mono bg-[#f5f1e8] px-1 py-0.5 rounded text-[#173e32]">risiko_kabupaten_terbaru.json</code>). Sistem akan memperbarui prediksi risiko seluruh kabupaten/kota tanpa menghapus catatan verifikasi lapangan yang sudah ada.
         </p>
 
         {/* Current Active Model Stats */}
@@ -162,33 +165,11 @@ export function UploadModelView({ currentPredictions, onModelUpdated }: UploadMo
             <p className="mt-0.5 font-bold text-[#10b981] capitalize">{activeMeta.statusData}</p>
           </div>
           <div>
-            <span className="text-[#557267]">Total Kabupaten Terdata:</span>
+            <span className="text-[#557267]">Total Kabupaten/Kota Terdata:</span>
             <p className="mt-0.5 font-bold font-mono text-[#173e32]">{currentPredictions.length} Wilayah</p>
           </div>
         </div>
       </section>
-
-      {/* Success Notification */}
-      {successMsg && (
-        <div className="flex items-start gap-3 rounded-xl border border-[#166534]/30 bg-[#dcfce7] p-4 text-xs text-[#14532d]">
-          <CheckCircle2 className="size-5 shrink-0 text-[#166534] mt-0.5" />
-          <div>
-            <p className="font-bold">Pembaruan Model Berhasil Diterapkan</p>
-            <p className="mt-1 leading-relaxed">{successMsg}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Error Notification */}
-      {errorMsg && (
-        <div className="flex items-start gap-3 rounded-xl border border-[#991b1b]/30 bg-[#fee2e2] p-4 text-xs text-[#991b1b]">
-          <AlertCircle className="size-5 shrink-0 text-[#991b1b] mt-0.5" />
-          <div>
-            <p className="font-bold">Gagal Memproses File</p>
-            <p className="mt-1 leading-relaxed">{errorMsg}</p>
-          </div>
-        </div>
-      )}
 
       {/* Upload Drag & Drop Area */}
       <section className="rounded-xl border border-[#173e32]/15 bg-white p-6 sm:p-8 shadow-sm">
@@ -230,7 +211,7 @@ export function UploadModelView({ currentPredictions, onModelUpdated }: UploadMo
         {/* Quick action button for local bundled model file */}
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#173e32]/10 pt-4">
           <p className="text-xs text-[#557267]">
-            Tersedia file model bawaan: <strong className="text-[#173e32]">risiko_kabupaten_terbaru.json</strong> (514 kabupaten)
+            Tersedia file model bawaan: <strong className="text-[#173e32]">risiko_kabupaten_terbaru.json</strong> (514 kabupaten/kota)
           </p>
 
           <button
@@ -259,7 +240,7 @@ export function UploadModelView({ currentPredictions, onModelUpdated }: UploadMo
 
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div className="rounded-lg bg-white p-3 border border-[#173e32]/10">
-              <span className="text-[#557267]">Jumlah Kabupaten:</span>
+              <span className="text-[#557267]">Jumlah Kabupaten/Kota:</span>
               <p className="font-mono text-lg font-bold text-[#173e32]">{parsedResult.predictions.length}</p>
             </div>
             <div className="rounded-lg bg-white p-3 border border-[#173e32]/10">

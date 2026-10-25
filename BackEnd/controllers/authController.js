@@ -62,11 +62,34 @@ exports.login = async (req, res) => {
 // Logika Login / Register via Google OAuth
 exports.googleLogin = async (req, res) => {
   try {
-    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+    const configuredFrontendUrl = process.env.FRONTEND_URL;
+    if (!configuredFrontendUrl && process.env.NODE_ENV === 'production') {
+      return res.status(500).json({
+        error: 'FRONTEND_URL wajib diatur pada environment Backend untuk callback Google OAuth.',
+      });
+    }
+
+    const frontendUrl = (configuredFrontendUrl || 'http://localhost:5173').replace(/\/+$/, '');
+    let frontendOrigin;
+    try {
+      const parsedFrontendUrl = new URL(frontendUrl);
+      if (
+        !['http:', 'https:'].includes(parsedFrontendUrl.protocol) ||
+        (process.env.NODE_ENV === 'production' && parsedFrontendUrl.hostname === 'localhost')
+      ) {
+        throw new Error('Origin Frontend tidak valid untuk environment ini.');
+      }
+      frontendOrigin = parsedFrontendUrl.origin;
+    } catch {
+      return res.status(500).json({
+        error: 'FRONTEND_URL harus berupa origin Frontend yang valid, misalnya https://mawas.vercel.app.',
+      });
+    }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${frontendUrl}/dashboard`,
+        redirectTo: `${frontendOrigin}/dashboard`,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',

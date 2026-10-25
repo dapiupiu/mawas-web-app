@@ -4,7 +4,7 @@ import { useState } from "react"
 const questions: [string, string][] = [
   [
     "Apa itu Mawas dan apa tujuannya?",
-    "Mawas adalah Sistem Peringatan Dini Risiko Kekeringan Pertanian untuk Mendukung Ketahanan Pangan. Sistem ini memprediksi risiko stres vegetasi tanaman pangan per kabupaten untuk rentang 30 hari ke depan, menyajikan indikator awal ancaman terhadap ketersediaan (produksi) pangan dan mendukung swasembada."
+    "Mawas adalah Sistem Peringatan Dini Risiko Kekeringan Pertanian untuk Mendukung Ketahanan Pangan. Sistem ini memprediksi risiko stres vegetasi tanaman pangan per kabupaten/kota untuk rentang 30 hari ke depan, menyajikan indikator awal ancaman terhadap ketersediaan (produksi) pangan dan mendukung swasembada."
   ],
   [
     "Mengapa fokus pada kekeringan pertanian, bukan langsung memprediksi ketahanan pangan secara luas?",

@@ -134,7 +134,7 @@ export function LocationPermissionModal() {
                   Izinkan Akses Lokasi
                 </h3>
                 <p className="mt-1 text-xs leading-relaxed text-[#36564a] sm:text-[13px]">
-                  Mawas membutuhkan lokasi Anda untuk menampilkan indikator stres vegetasi dan estimasi kekeringan pertanian di kabupaten Anda.
+                  Mawas membutuhkan lokasi Anda untuk menampilkan indikator stres vegetasi dan estimasi kekeringan pertanian di kabupaten/kota Anda.
                 </p>
               </div>
             </div>

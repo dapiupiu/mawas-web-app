@@ -6,6 +6,8 @@ const PAGE_SIZE = 30;
 
 interface VerificationViewProps {
   predictions: PredictionItem[];
+  isLoading: boolean;
+  loadError: string | null;
   onOpenVerifyModal: (item: PredictionItem) => void;
 }
 
@@ -46,7 +48,7 @@ const verificationLabels: Record<VerificationStatus, { label: string; class: str
   },
 };
 
-export function VerificationView({ predictions, onOpenVerifyModal }: VerificationViewProps) {
+export function VerificationView({ predictions, isLoading, loadError, onOpenVerifyModal }: VerificationViewProps) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | VerificationStatus>("all");
   const [riskFilter, setRiskFilter] = useState<"all" | RiskLevel>("all");
@@ -116,16 +118,16 @@ export function VerificationView({ predictions, onOpenVerifyModal }: Verificatio
           {/* Quick Verification Counter Bar */}
           <div className="flex flex-wrap items-center gap-2 border-t sm:border-t-0 sm:border-l sm:pl-5 border-[#173e32]/10 pt-3 sm:pt-0">
             <div className="rounded-lg border border-[#b45309]/30 bg-[#fef3c7] px-3 py-2 text-left">
-              <span className="block font-mono text-lg font-bold text-[#b45309]">{pendingCount}</span>
+              <span className="block font-mono text-lg font-bold text-[#b45309]">{isLoading ? "…" : pendingCount}</span>
               <span className="text-[11px] font-semibold text-[#78350f]">Menunggu Review</span>
             </div>
-            <div className="rounded-lg border border-[#166534]/30 bg-[#dcfce7] px-3 py-2 text-left">
-              <span className="block font-mono text-lg font-bold text-[#166534]">{verifiedCount}</span>
-              <span className="text-[11px] font-semibold text-[#14532d]">Terverifikasi</span>
-            </div>
             <div className="rounded-lg border border-[#173e32]/15 bg-[#f5f1e8] px-3 py-2 text-left">
-              <span className="block font-mono text-lg font-bold text-[#173e32]">{needCheckCount}</span>
+              <span className="block font-mono text-lg font-bold text-[#173e32]">{isLoading ? "…" : needCheckCount}</span>
               <span className="text-[11px] font-semibold text-[#557267]">Perlu Cek</span>
+            </div>
+            <div className="rounded-lg border border-[#166534]/30 bg-[#dcfce7] px-3 py-2 text-left">
+              <span className="block font-mono text-lg font-bold text-[#166534]">{isLoading ? "…" : verifiedCount}</span>
+              <span className="text-[11px] font-semibold text-[#14532d]">Terverifikasi</span>
             </div>
           </div>
         </div>
@@ -139,7 +141,7 @@ export function VerificationView({ predictions, onOpenVerifyModal }: Verificatio
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari kabupaten, provinsi, atau kode..."
+            placeholder="Cari kabupaten/kota, provinsi, atau kode..."
             className="min-h-11 w-full rounded-lg border border-[#173e32]/15 bg-[#fbfaf6] py-2 pl-9 pr-3 text-xs sm:text-sm text-[#173e32] placeholder:text-[#557267] focus-visible:outline-2 focus-visible:outline-[#10b981]"
           />
         </label>
@@ -148,7 +150,7 @@ export function VerificationView({ predictions, onOpenVerifyModal }: Verificatio
         <div className="flex flex-wrap items-center gap-2">
           {/* Status Tabs */}
           <div className="inline-flex rounded-lg border border-[#173e32]/15 bg-[#fbfaf6] p-0.5 text-xs font-semibold">
-            {(["all", "menunggu", "terverifikasi", "perlu_cek"] as const).map((st) => (
+            {(["all", "menunggu", "perlu_cek", "terverifikasi"] as const).map((st) => (
               <button
                 key={st}
                 type="button"
@@ -159,7 +161,7 @@ export function VerificationView({ predictions, onOpenVerifyModal }: Verificatio
                     : "text-[#557267] hover:text-[#173e32]"
                 }`}
               >
-                {st === "all" ? "Semua Status" : st === "menunggu" ? "Menunggu" : st === "terverifikasi" ? "Terverifikasi" : "Perlu Cek"}
+                {st === "all" ? "Semua Status" : st === "menunggu" ? "Menunggu" : st === "perlu_cek" ? "Perlu Cek" : "Terverifikasi"}
               </button>
             ))}
           </div>
@@ -181,19 +183,35 @@ export function VerificationView({ predictions, onOpenVerifyModal }: Verificatio
       </div>
 
       {/* Result counter */}
+      {isLoading && (
+        <p role="status" className="flex items-center gap-2 px-1 text-xs text-[#557267]">
+          <Loader2 className="size-4 animate-spin text-[#10b981]" />
+          Mengambil data terbaru…
+        </p>
+      )}
+      {loadError && (
+        <p role="alert" className="rounded-lg border border-[#991b1b]/20 bg-[#fee2e2] p-3 text-xs text-[#991b1b]">
+          {loadError}
+        </p>
+      )}
       {filteredItems.length > 0 && (
         <p className="text-xs text-[#557267] px-1">
           Menampilkan <span className="font-semibold text-[#173e32]">{visibleItems.length}</span> dari{" "}
-          <span className="font-semibold text-[#173e32]">{filteredItems.length}</span> kabupaten
+          <span className="font-semibold text-[#173e32]">{filteredItems.length}</span> kabupaten/kota
         </p>
       )}
 
       {/* Main Verification Table / List */}
       <section className="overflow-hidden rounded-xl border border-[#173e32]/12 bg-white shadow-sm">
-        {filteredItems.length === 0 ? (
+        {isLoading && filteredItems.length === 0 ? (
+          <div className="flex items-center justify-center gap-2 py-12 text-sm text-[#557267]" role="status">
+            <Loader2 className="size-5 animate-spin text-[#10b981]" />
+            Memuat daftar kabupaten/kota…
+          </div>
+        ) : filteredItems.length === 0 ? (
           <div className="py-12 text-center">
             <ClipboardCheck className="mx-auto size-8 text-[#557267]/60" />
-            <p className="mt-2 text-sm font-semibold text-[#173e32]">Tidak ada kabupaten yang cocok</p>
+            <p className="mt-2 text-sm font-semibold text-[#173e32]">Tidak ada kabupaten/kota yang cocok</p>
             <p className="mt-1 text-xs text-[#557267]">Coba ubah kata kunci pencarian atau reset filter.</p>
           </div>
         ) : (
@@ -265,7 +283,7 @@ export function VerificationView({ predictions, onOpenVerifyModal }: Verificatio
                   Memuat lebih banyak data…
                 </span>
               ) : (
-                <span className="text-xs text-[#557267]/60">Semua {filteredItems.length} kabupaten telah ditampilkan</span>
+                <span className="text-xs text-[#557267]/60">Semua {filteredItems.length} kabupaten/kota telah ditampilkan</span>
               )}
             </div>
           </div>
