@@ -67,8 +67,6 @@ Mawas dirancang untuk dua kelompok pengguna. **Publik** dapat membaca peta risik
 
 Mawas berfokus pada **sektor pertanian**. Skor risiko adalah **indikasi relatif, bukan prakiraan yang akurat**, dan seluruh antarmuka dibuat agar tidak mengklaim lebih dari yang didukung data (lihat [Keterbatasan](#keterbatasan)).
 
-> Nama platform sebelumnya adalah *Pantau Pangan*.
-
 ---
 
 ## Project Components
