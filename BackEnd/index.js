@@ -4,7 +4,30 @@ const cors = require('cors');
 
 const app = express();
 
-app.use(cors());
+const allowedOrigins = new Set(
+  (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || '')
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
+    .filter(Boolean),
+);
+
+function isAllowedOrigin(origin) {
+  const isLocalDevelopment = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  return isLocalDevelopment || allowedOrigins.has(origin.replace(/\/+$/, ''));
+}
+
+app.use((req, res, next) => {
+  const origin = req.get('Origin');
+  if (!origin || isAllowedOrigin(origin)) return next();
+
+  return res.status(403).json({ message: 'Origin not allowed by CORS' });
+});
+
+app.use(cors({
+  origin(origin, callback) {
+    return callback(null, Boolean(origin));
+  },
+}));
 app.use(express.json());
 
 // 0. Route GenAI (Proxy Groq)
