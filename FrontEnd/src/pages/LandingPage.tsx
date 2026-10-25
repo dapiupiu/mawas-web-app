@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUpRight } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ArticlesSection } from "@/components/landing/ArticlesSection";
 import { BrandMark } from "@/components/landing/BrandMark";
@@ -10,10 +11,22 @@ import { RiskMapPreview } from "@/components/landing/RiskMapPreview";
 import { AgriStatusPanel } from "@/components/landing/AgriStatusPanel";
 import { HeroAiForecast } from "@/components/landing/HeroAiForecast";
 import { SiteHeader } from "@/components/landing/SiteHeader";
+import { scrollToSection } from "@/lib/scrollToSection";
 
 const copyrightYear = new Date().getFullYear();
 
 export function LandingPage() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const sectionId = location.hash.slice(1);
+    if (!sectionId) return;
+    const frame = window.requestAnimationFrame(() =>
+      scrollToSection(sectionId, "smooth"),
+    );
+    return () => window.cancelAnimationFrame(frame);
+  }, [location.hash]);
+
   return (
     <div className="min-h-screen overflow-x-clip bg-[#f5f1e8] text-[#173e32]">
       <a

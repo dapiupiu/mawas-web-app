@@ -11,6 +11,7 @@ import {
   UserCheck,
   Users
 } from "lucide-react";
+import { useEffect } from "react";
 import type { DashboardTab } from "@/types/dashboard";
 import type { StoredUser } from "@/lib/api";
 
@@ -38,6 +39,31 @@ export function DashboardSidebar({
   onEditProfile,
 }: DashboardSidebarProps) {
   const isSuperadmin = user.role === "superadmin";
+
+  useEffect(() => {
+    if (!isOpenMobile) return;
+
+    const scrollY = window.scrollY;
+    const previous = {
+      overflow: document.body.style.overflow,
+      position: document.body.style.position,
+      top: document.body.style.top,
+      width: document.body.style.width,
+    };
+
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+
+    return () => {
+      document.body.style.overflow = previous.overflow;
+      document.body.style.position = previous.position;
+      document.body.style.top = previous.top;
+      document.body.style.width = previous.width;
+      window.scrollTo(0, scrollY);
+    };
+  }, [isOpenMobile]);
 
   const navItems = [
     {
@@ -86,7 +112,7 @@ export function DashboardSidebar({
       {/* Mobile Backdrop */}
       {isOpenMobile && (
         <div
-          className="fixed inset-0 z-40 bg-[#091b15]/60 backdrop-blur-sm lg:hidden transition-opacity"
+          className="fixed inset-0 z-40 touch-none overscroll-none bg-[#091b15]/60 backdrop-blur-sm transition-opacity lg:hidden"
           onClick={onCloseMobile}
           aria-hidden="true"
         />
@@ -95,7 +121,7 @@ export function DashboardSidebar({
       {/* Sidebar Container */}
       <aside
         id="dashboard-sidebar"
-        className={`fixed inset-y-0 left-0 z-50 flex h-dvh w-72 shrink-0 flex-col border-r border-[#173e32]/12 bg-[#fbfaf6] transition-transform duration-200 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-dvh w-72 shrink-0 flex-col overscroll-contain border-r border-[#173e32]/12 bg-[#fbfaf6] transition-transform duration-200 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
           isOpenMobile ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-label="Navigasi Utama Ruang Kerja"

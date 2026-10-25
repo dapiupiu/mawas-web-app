@@ -609,7 +609,7 @@ export function RiskMapPreview() {
               </h4>
             </div>
             <a
-              href="#status-agri"
+              href="#status-wilayah"
               className="text-[10px] font-medium text-[#173e32] hover:text-[#b97a16] transition-colors"
             >
               Lihat tabel &rarr;

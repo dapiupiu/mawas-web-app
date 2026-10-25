@@ -14,6 +14,7 @@ import { LoginPage } from "@/pages/AuthPages";
 import { PublicRiskMapPage } from "@/pages/PublicRiskMapPage";
 import { ReadArticlePage } from "@/pages/ReadArticlePage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { NotFoundPage } from "@/pages/NotFoundPage";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { LocationPermissionModal } from "@/components/common/LocationPermissionModal";
 
@@ -137,7 +138,7 @@ function RouteTransition() {
               }
             />
 
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </motion.div>
       </AnimatePresence>
