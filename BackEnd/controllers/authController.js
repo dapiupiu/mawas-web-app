@@ -39,7 +39,7 @@ exports.login = async (req, res) => {
 
     const user = data.user;
     const role = user.user_metadata?.role || "user";
-    const nama = user.user_metadata?.nama || "User";
+    const nama = user.user_metadata?.nama || user.user_metadata?.name || "User";
     const avatar = user.user_metadata?.avatar_url || null;
 
     return res.status(200).json({
@@ -62,10 +62,34 @@ exports.login = async (req, res) => {
 // Logika Login / Register via Google OAuth
 exports.googleLogin = async (req, res) => {
   try {
+    const configuredFrontendUrl = process.env.FRONTEND_URL;
+    if (!configuredFrontendUrl && process.env.NODE_ENV === 'production') {
+      return res.status(500).json({
+        error: 'FRONTEND_URL wajib diatur pada environment Backend untuk callback Google OAuth.',
+      });
+    }
+
+    const frontendUrl = (configuredFrontendUrl || 'http://localhost:5173').replace(/\/+$/, '');
+    let frontendOrigin;
+    try {
+      const parsedFrontendUrl = new URL(frontendUrl);
+      if (
+        !['http:', 'https:'].includes(parsedFrontendUrl.protocol) ||
+        (process.env.NODE_ENV === 'production' && parsedFrontendUrl.hostname === 'localhost')
+      ) {
+        throw new Error('Origin Frontend tidak valid untuk environment ini.');
+      }
+      frontendOrigin = parsedFrontendUrl.origin;
+    } catch {
+      return res.status(500).json({
+        error: 'FRONTEND_URL harus berupa origin Frontend yang valid, misalnya https://mawas.vercel.app.',
+      });
+    }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: 'http://localhost:5173/dashboard', // URL frontend setelah sukses login
+        redirectTo: `${frontendOrigin}/dashboard`,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
@@ -88,26 +112,24 @@ exports.googleLogin = async (req, res) => {
 exports.updateProfile = async (req, res) => {
   const { nama, avatar_url } = req.body;
 
-  if (!nama && !avatar_url) {
+  if (typeof nama !== 'string' && typeof avatar_url !== 'string') {
     return res.status(400).json({ error: "Atribut yang ingin diperbarui (nama/avatar_url) wajib diisi." });
   }
 
   try {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) {
-      return res.status(401).json({ error: "Token autentikasi tidak ditemukan." });
+    const updateData = { ...(req.user.user_metadata || {}) };
+    if (typeof nama === 'string') {
+      const normalizedName = nama.trim();
+      if (!normalizedName || normalizedName.length > 100) {
+        return res.status(400).json({ error: "Nama wajib diisi dan maksimal 100 karakter." });
+      }
+      updateData.nama = normalizedName;
+      updateData.name = normalizedName;
     }
+    if (typeof avatar_url === 'string') updateData.avatar_url = avatar_url;
 
-    // Menyiapkan data metadata yang akan di-update
-    const updateData = {};
-    if (nama) updateData.nama = nama;
-    if (avatar_url) updateData.avatar_url = avatar_url;
-
-    // Update user_metadata di Supabase Auth berdasarkan token aktif
-    const { data, error } = await supabase.auth.updateUser({
-      data: updateData
+    const { data, error } = await supabaseAdmin.auth.admin.updateUserById(req.user.id, {
+      user_metadata: updateData
     });
 
     if (error) {
@@ -122,7 +144,7 @@ exports.updateProfile = async (req, res) => {
       user: {
         id: updatedUser.id,
         email: updatedUser.email,
-        nama: updatedUser.user_metadata?.nama,
+        nama: updatedUser.user_metadata?.nama || updatedUser.user_metadata?.name,
         role: updatedUser.user_metadata?.role || "user",
         avatar_url: updatedUser.user_metadata?.avatar_url || null
       }
@@ -136,8 +158,8 @@ exports.updateProfile = async (req, res) => {
 exports.changePassword = async (req, res) => {
   const { newPassword } = req.body;
 
-  if (!newPassword || newPassword.length < 6) {
-    return res.status(400).json({ error: "Password baru wajib diisi dan minimal 6 karakter." });
+  if (!newPassword || newPassword.length < 8) {
+    return res.status(400).json({ error: "Password baru wajib diisi dan minimal 8 karakter." });
   }
 
   try {
@@ -161,5 +183,56 @@ exports.changePassword = async (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ error: "Terjadi kesalahan server saat mengganti password." });
+  }
+};
+
+exports.uploadAvatar = async (req, res) => {
+  const contentType = req.headers['content-type'];
+  const extensionByType = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+  };
+  const extension = extensionByType[contentType];
+  if (!extension || !Buffer.isBuffer(req.body) || req.body.length === 0) {
+    return res.status(400).json({ error: "Unggah foto JPG, PNG, atau WebP yang valid." });
+  }
+  if (req.body.length > 5 * 1024 * 1024) {
+    return res.status(413).json({ error: "Ukuran foto maksimal 5 MB." });
+  }
+
+  try {
+    const objectPath = `${req.user.id}/avatar.${extension}`;
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from('avatars')
+      .upload(objectPath, req.body, { contentType, upsert: true });
+    if (uploadError) throw uploadError;
+
+    const { data: publicUrl } = supabaseAdmin.storage
+      .from('avatars')
+      .getPublicUrl(objectPath);
+    const metadata = {
+      ...(req.user.user_metadata || {}),
+      avatar_url: publicUrl.publicUrl,
+    };
+    const { data, error } = await supabaseAdmin.auth.admin.updateUserById(req.user.id, {
+      user_metadata: metadata,
+    });
+    if (error) throw error;
+
+    return res.status(200).json({
+      status: 'success',
+      avatar_url: publicUrl.publicUrl,
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        nama: data.user.user_metadata?.nama || data.user.user_metadata?.name || 'User',
+        role: data.user.user_metadata?.role || 'user',
+        avatar_url: data.user.user_metadata?.avatar_url || null,
+      },
+    });
+  } catch (error) {
+    console.error('Gagal mengunggah avatar:', error.message);
+    return res.status(500).json({ error: 'Foto profil gagal diunggah.' });
   }
 };

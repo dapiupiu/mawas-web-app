@@ -9,6 +9,9 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY
 );
+const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : null;
 
 const joinKabupaten = (risks, kabupatenRows) => {
   const kabupatenByCode = new Map(
@@ -29,6 +32,9 @@ const joinKabupaten = (risks, kabupatenRows) => {
 
 exports.seedRisikoData = async (req, res) => {
   try {
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi pada Backend.' });
+    }
     const filePath = path.resolve(
       __dirname,
       '../../ml-service/output_model/risiko_kabupaten_terbaru.json'
@@ -38,7 +44,7 @@ exports.seedRisikoData = async (req, res) => {
     }
 
     const payload = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    const result = await importPredictions(supabase, payload);
+    const result = await importPredictions(supabaseAdmin, payload);
     return res.status(201).json({
       status: 'success',
       message: `Berhasil memperbarui ${result.total} prediksi risiko.`,
@@ -52,7 +58,10 @@ exports.seedRisikoData = async (req, res) => {
 
 exports.importRisiko = async (req, res) => {
   try {
-    const result = await importPredictions(supabase, req.body);
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi pada Backend.' });
+    }
+    const result = await importPredictions(supabaseAdmin, req.body);
     return res.status(200).json({
       status: 'success',
       message: 'Data prediksi berhasil diperbarui.',
@@ -85,15 +94,21 @@ exports.getAllRisiko = async (req, res) => {
       return res.status(200).json({ status: 'success', total: 0, data: [] });
     }
 
-    const kabupaten = [];
+    const kabupatenBatches = [];
     for (let offset = 0; offset < codes.length; offset += 200) {
-      const { data, error } = await supabase
-        .from('kabupaten')
-        .select('kode_kabupaten,nama_kabupaten,provinsi,id_fe')
-        .in('kode_kabupaten', codes.slice(offset, offset + 200));
-      if (error) return res.status(400).json({ error: error.message });
-      kabupaten.push(...(data || []));
+      kabupatenBatches.push(codes.slice(offset, offset + 200));
     }
+    const kabupatenResults = await Promise.all(
+      kabupatenBatches.map((batch) =>
+        supabase
+          .from('kabupaten')
+          .select('kode_kabupaten,nama_kabupaten,provinsi,id_fe')
+          .in('kode_kabupaten', batch)
+      )
+    );
+    const kabupatenError = kabupatenResults.find((result) => result.error)?.error;
+    if (kabupatenError) return res.status(400).json({ error: kabupatenError.message });
+    const kabupaten = kabupatenResults.flatMap((result) => result.data || []);
 
     const data = joinKabupaten(risks, kabupaten);
     return res.status(200).json({ status: 'success', total: data.length, data });

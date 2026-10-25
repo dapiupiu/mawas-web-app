@@ -13,9 +13,9 @@ const normalizeScore = (score) => {
   if (score === null || score === undefined || score === '') return null;
   const parsed = Number(score);
   if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
-    throw new Error(`Skor risiko tidak valid: ${score}. Output ML harus berada pada rentang 0-100.`);
+    throw new Error(`Skor risiko tidak valid: ${score}. Output ML harus berada pada rentang 0-1 atau 0-100.`);
   }
-  return parsed / 100;
+  return parsed <= 1 ? parsed : parsed / 100;
 };
 
 const nullableNumber = (value, field, code, { minimum = -Infinity, maximum = Infinity, integer = false } = {}) => {
@@ -97,7 +97,7 @@ const normalizePredictions = (payload) => {
         kode_kabupaten: code,
         nama_kabupaten: name,
         provinsi: province,
-        id_fe: feId,
+        ...(feId ? { id_fe: feId } : {}),
       },
       risiko: {
         kode_kabupaten: code,
