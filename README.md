@@ -23,11 +23,12 @@
 </p>
 
 <p align="center">
+<a href="https://mawas-web-app.vercel.app/">Live Web</a> •
+<a href="https://drive.google.com/drive/folders/1AEcbUoRP9d2l_iO2y4w7B_LS135uoSsO?usp=sharing">Proposal</a> •
+<a href="https://s.id/videodemomawas">Video Demo</a> •
 <a href="#cara-menjalankan-aplikasi">Cara Menjalankan</a> •
-<a href="./ml-service/docs/kontrak_output_model.md">Kontrak Output Model</a> •
-<a href="./ml-service/docs/spesifikasi_genai.md">Spesifikasi GenAI</a> •
-<a href="./ml-service/docs/alur_skrip.md">Alur Skrip ML</a> •
-<a href="./FrontEnd/design.md">Arah Desain</a>
+<a href="https://mawas-web-app-axmu.vercel.app/">Backend API</a> •
+<a href="https://s.id/arsipmawas">Arsip Proyek</a>
 </p>
 
 ---
@@ -81,6 +82,8 @@ Mawas berfokus pada **sektor pertanian**. Skor risiko adalah **indikasi awal (bu
 | Video Demo | [s.id/videodemomawas](https://s.id/videodemomawas) |
 | PageSpeed Insights | [Hasil pengujian](https://pagespeed.web.dev/analysis/https-mawas-web-app-vercel-app/j44sp0adsi?form_factor=desktop) |
 | CodeFactor | [Hasil analisis kode](https://www.codefactor.io/repository/github/dapiupiu/mawas-web-app) |
+| Proposal | [Proposal MAWAS](https://drive.google.com/drive/folders/1AEcbUoRP9d2l_iO2y4w7B_LS135uoSsO?usp=sharing) |
+| Arsip Proyek | [s.id/arsipmawas](https://s.id/arsipmawas) |
 
 ---
 
@@ -814,7 +817,7 @@ Informasi berikut juga dicantumkan pada antarmuka agar klaim Mawas tetap jujur:
 ## Tim Pengembang
 
 **Tim Birokrasi Async**, Universitas Islam Negeri Sumatera Utara.
-Proyek ini dikembangkan untuk Lomba Web Development IT Fest 2026 dengan tema *Pelayanan Publik dalam Skala Besar*.
+Proyek ini dikembangkan untuk Lomba Web Development IT Fest 2026 dengan tema *Pelayanan Publik dalam Skala Besar* dan sub tema *Smart Government*.
 
 | No | Nama | Peran | GitHub |
 |---|---|---|---|
