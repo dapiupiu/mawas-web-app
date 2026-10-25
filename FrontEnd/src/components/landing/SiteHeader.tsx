@@ -26,6 +26,7 @@ const ease = [0.22, 1, 0.36, 1] as const;
 export function SiteHeader() {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [pendingMobileSection, setPendingMobileSection] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const shouldReduceMotion = useReducedMotion();
@@ -46,11 +47,24 @@ export function SiteHeader() {
     const sectionId = href.slice(1);
     closeMenu();
     if (location.pathname === "/") {
-      window.history.replaceState(null, "", href);
+      navigate({ pathname: "/", hash: href });
       scrollToSection(sectionId);
       return;
     }
     navigate(`/${href}`);
+  };
+
+  const navigateFromMobileMenu = (href: string) => {
+    const sectionId = href.slice(1);
+    if (location.pathname !== "/") {
+      closeMenu();
+      navigate(`/${href}`);
+      return;
+    }
+
+    window.history.pushState(null, "", href);
+    setPendingMobileSection(sectionId);
+    closeMenu();
   };
 
   const motionProps = shouldReduceMotion
@@ -208,7 +222,16 @@ export function SiteHeader() {
       </div>
 
       {/* Mobile navigation */}
-      <AnimatePresence initial={false}>
+      <AnimatePresence
+        initial={false}
+        onExitComplete={() => {
+          if (!pendingMobileSection) return;
+          window.requestAnimationFrame(() => {
+            scrollToSection(pendingMobileSection);
+            setPendingMobileSection(null);
+          });
+        }}
+      >
         {isOpen && (
           <motion.nav
             id="mobile-navigation"
@@ -235,10 +258,10 @@ export function SiteHeader() {
                     newParams.set("prov", prov);
                     window.history.pushState(null, "", `/?${newParams.toString()}`);
                     window.dispatchEvent(new Event("popstate"));
-                    const targetElement = document.getElementById("status-wilayah");
-                    if (targetElement) {
-                      targetElement.scrollIntoView({ behavior: "smooth" });
-                    }
+                    window.setTimeout(
+                      () => scrollToSection("status-wilayah"),
+                      shouldReduceMotion ? 0 : 300,
+                    );
                   }}
                 />
               </div>
@@ -291,7 +314,7 @@ export function SiteHeader() {
                         }
                         onClick={(event) => {
                           event.preventDefault();
-                          navigateToSection(item.href);
+                          navigateFromMobileMenu(item.href);
                         }}
                         className={linkClass}
                       >
