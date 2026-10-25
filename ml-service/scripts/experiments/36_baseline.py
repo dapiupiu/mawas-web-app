@@ -1,6 +1,9 @@
+﻿import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import numpy as np
 import pandas as pd
-from model_utils import muat_tabel, bagi_latih_uji
+from scripts.model_utils import muat_tabel, bagi_latih_uji
 
 TARGET = "target_fapar_t3"
 

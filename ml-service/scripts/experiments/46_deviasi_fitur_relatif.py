@@ -1,8 +1,11 @@
+﻿import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 # %% Muat data
 import pandas as pd
 from xgboost import XGBRegressor
 
-from model_utils import muat_tabel, bagi_latih_uji, ukur_ranking, FITUR, TARGET, Q_RISIKO
+from scripts.model_utils import muat_tabel, bagi_latih_uji, ukur_ranking, FITUR, TARGET, Q_RISIKO
 
 PARAM = dict(  # parameter sederhana pilihan kita
     n_estimators=100, learning_rate=0.05, max_depth=2, min_child_weight=20,

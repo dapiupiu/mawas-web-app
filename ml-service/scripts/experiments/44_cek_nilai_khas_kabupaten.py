@@ -1,7 +1,10 @@
+﻿import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 # %% load data: hanya data latih (sama seperti yang dipakai baseline)
 import json
 import pandas as pd
-from model_utils import muat_tabel, bagi_latih_uji, TARGET
+from scripts.model_utils import muat_tabel, bagi_latih_uji, TARGET
 
 df = muat_tabel()
 latih, uji = bagi_latih_uji(df)

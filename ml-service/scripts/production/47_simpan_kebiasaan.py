@@ -1,10 +1,13 @@
+﻿import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 # %% Muat data
 import json
 from pathlib import Path
 
 import pandas as pd
 
-from model_utils import muat_tabel
+from scripts.model_utils import muat_tabel
 
 df = muat_tabel()
 andal = df[df["target_andal"] & df["fapar_mean"].notna()]

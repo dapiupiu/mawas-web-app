@@ -1,5 +1,8 @@
+﻿import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import pandas as pd
-from fitur_utils import tambah_target_dan_lag_fapar
+from scripts.fitur_utils import tambah_target_dan_lag_fapar
 
 HORIZON = 3
 gab = pd.read_parquet("data/training/gabungan_fapar_hujan.parquet")

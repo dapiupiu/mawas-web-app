@@ -1,4 +1,7 @@
-from model_utils import muat_tabel, bagi_latih_uji
+﻿import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+from scripts.model_utils import muat_tabel, bagi_latih_uji
 
 df = muat_tabel()
 latih, uji = bagi_latih_uji(df)

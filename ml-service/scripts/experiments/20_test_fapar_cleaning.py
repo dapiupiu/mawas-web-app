@@ -1,6 +1,9 @@
+﻿import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from pathlib import Path
 import numpy as np
-from fapar_utils import baca_fapar, bersihkan_fapar
+from scripts.fapar_utils import baca_fapar, bersihkan_fapar
 
 folder = Path("data/FAPAR")
 files = sorted(folder.rglob("*.tif"))

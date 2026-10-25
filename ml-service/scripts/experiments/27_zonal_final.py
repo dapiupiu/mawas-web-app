@@ -1,9 +1,12 @@
+﻿import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import json
 import re
 from pathlib import Path
 import pandas as pd
 import rasterio
-from fapar_utils import baca_fapar, bersihkan_fapar, buat_mask_kabupaten, hitung_zonal
+from scripts.fapar_utils import baca_fapar, bersihkan_fapar, buat_mask_kabupaten, hitung_zonal
 
 GEOJSON = "data/geojson/kabupaten_clean.geojson"
 OUT_DIR = Path("data/fapar_zonal")
