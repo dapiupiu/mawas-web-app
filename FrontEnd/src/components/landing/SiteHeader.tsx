@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ArrowUpRight,
@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 import { ProvinceSearchInput } from "@/components/landing/ProvinceSearchInput";
+import { scrollToSection } from "@/lib/scrollToSection";
 
 const navigation = [
   { label: "Peta risiko", href: "/peta-risiko", route: true },
@@ -26,6 +27,7 @@ export function SiteHeader() {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
@@ -40,6 +42,16 @@ export function SiteHeader() {
 
   const closeMenu = () => setIsOpen(false);
   const isRiskPage = location.pathname === "/peta-risiko";
+  const navigateToSection = (href: string) => {
+    const sectionId = href.slice(1);
+    closeMenu();
+    if (location.pathname === "/") {
+      window.history.replaceState(null, "", href);
+      scrollToSection(sectionId);
+      return;
+    }
+    navigate(`/${href}`);
+  };
 
   const motionProps = shouldReduceMotion
     ? {}
@@ -130,7 +142,10 @@ export function SiteHeader() {
               <a
                 key={item.href}
                 href={hashHref}
-                onClick={closeMenu}
+                onClick={(event) => {
+                  event.preventDefault();
+                  navigateToSection(item.href);
+                }}
                 className={className}
               >
                 {content}
@@ -274,7 +289,10 @@ export function SiteHeader() {
                             ? item.href
                             : `/${item.href}`
                         }
-                        onClick={closeMenu}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          navigateToSection(item.href);
+                        }}
                         className={linkClass}
                       >
                         {content}
