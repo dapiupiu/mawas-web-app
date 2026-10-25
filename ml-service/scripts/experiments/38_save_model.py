@@ -1,3 +1,6 @@
+﻿import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 # %% load data dan split
 import json
 from pathlib import Path
@@ -7,7 +10,7 @@ import pandas as pd
 import xgboost
 from xgboost import XGBRegressor
 
-from model_utils import (
+from scripts.model_utils import (
     muat_tabel,
     bagi_latih_uji,
     FITUR,

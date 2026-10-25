@@ -1,7 +1,10 @@
+﻿import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from fapar_utils import baca_fapar, bersihkan_fapar
+from scripts.fapar_utils import baca_fapar, bersihkan_fapar
 
 T = "target_fapar_t3"
 tabel = pd.read_parquet("data/training/tabel_training.parquet")

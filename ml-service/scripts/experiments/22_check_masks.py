@@ -1,8 +1,11 @@
+﻿import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import json
 from pathlib import Path
 import numpy as np
 import rasterio
-from fapar_utils import buat_mask_kabupaten
+from scripts.fapar_utils import buat_mask_kabupaten
 
 GEOJSON = "data/geojson/kabupaten_clean.geojson"
 
