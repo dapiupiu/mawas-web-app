@@ -81,6 +81,7 @@ Mawas berfokus pada **sektor pertanian**. Skor risiko adalah **indikasi awal (bu
 | Video Demo | [s.id/videodemomawas](https://s.id/videodemomawas) |
 | PageSpeed Insights | [Hasil pengujian](https://pagespeed.web.dev/analysis/https-mawas-web-app-vercel-app/j44sp0adsi?form_factor=desktop) |
 | CodeFactor | [Hasil analisis kode](https://www.codefactor.io/repository/github/dapiupiu/mawas-web-app) |
+| Arsip Proyek | [s.id/arsipmawas](https://s.id/arsipmawas) |
 
 ---
 
