@@ -26,7 +26,7 @@
 <a href="#cara-menjalankan-aplikasi">Cara Menjalankan</a> •
 <a href="./ml-service/docs/kontrak_output_model.md">Kontrak Output Model</a> •
 <a href="./ml-service/docs/spesifikasi_genai.md">Spesifikasi GenAI</a> •
-<a href="./ml-service/docs/alur_script.md">Alur Skrip ML</a> •
+<a href="./ml-service/docs/alur_skrip.md">Alur Skrip ML</a> • •
 <a href="./FrontEnd/design.md">Arah Desain</a>
 </p>
 
@@ -61,11 +61,11 @@
 
 ## Deskripsi Singkat Proyek
 
-**Mawas** adalah aplikasi web full-stack yang membaca indikasi risiko kekeringan pertanian dan stres vegetasi untuk **514 kabupaten/kota di seluruh Indonesia** dengan horizon **30 hari ke depan**. Sistem ini mengolah anomali vegetasi satelit (FAPAR) dan konteks curah hujan, menghitung skor risiko relatif antar-kabupaten, lalu menampilkannya dalam kategori **Rendah**, **Sedang**, atau **Tinggi** pada peta interaktif.
+**Mawas** adalah aplikasi web full-stack yang membaca indikasi risiko kekeringan pertanian dan stres vegetasi untuk **514 kabupaten/kota di seluruh Indonesia**. Sistem menyertakan field `horizon_hari` = 30 sebagai konstanta kontrak perencanaan. Sistem ini mengolah anomali vegetasi satelit (FAPAR) dan konteks curah hujan, menghitung skor risiko relatif antar-kabupaten, lalu menampilkannya dalam kategori **Rendah**, **Sedang**, atau **Tinggi** pada peta interaktif.
 
-Mawas dirancang untuk dua kelompok pengguna. **Publik** dapat membaca peta risiko, status wilayah, dan artikel edukasi tanpa login. **Operator dan Superadmin** menggunakan dashboard untuk memverifikasi hasil model, membuat laporan, memperbarui data model, dan mengelola konten, dengan bantuan **analisis teks GenAI** yang menjelaskan kondisi tiap kabupaten dalam bahasa Indonesia sederhana.
+Mawas dirancang untuk dua kelompok pengguna. **Publik** dapat membaca peta risiko, status wilayah, dan artikel edukasi tanpa login. **Operator dan Superadmin** menggunakan dashboard untuk memverifikasi hasil analisis, membuat laporan, memperbarui data model, dan mengelola konten, dengan bantuan **analisis teks GenAI** yang menjelaskan kondisi tiap kabupaten dalam bahasa Indonesia sederhana.
 
-Mawas berfokus pada **sektor pertanian**. Skor risiko adalah **indikasi relatif, bukan prakiraan yang akurat**, dan seluruh antarmuka dibuat agar tidak mengklaim lebih dari yang didukung data (lihat [Keterbatasan](#keterbatasan)).
+Mawas berfokus pada **sektor pertanian**. Skor risiko adalah **indikasi awal (bukan prakiraan presisi)**, dan seluruh antarmuka dibuat agar tidak mengklaim lebih dari yang didukung data (lihat [Keterbatasan](#keterbatasan)).
 
 ---
 
@@ -754,8 +754,8 @@ Informasi berikut juga dicantumkan pada antarmuka agar klaim Mawas tetap jujur:
 2. **ML Service sebagai API**
    Membungkus pipeline menjadi layanan inferensi (misalnya FastAPI) agar skor dapat dihitung ulang tanpa menjalankan skrip secara manual.
 
-3. **Horizon Prediksi Tambahan**
-   Menyediakan horizon prediksi tambahan seperti 7 hari, 14 hari hingga 60 hari selain 30 hari (struktur data contoh sudah tersedia di `ml-service/dummy/`).
+3. **Model Prediksi Time-Series**
+   Mengembangkan model yang benar-benar memprediksi kondisi ke depan (misalnya horizon +7, +14, +30, dan +60 hari), sebagai kelanjutan dari skor kondisi terkini saat ini. Struktur data contoh sudah tersedia di `ml-service/dummy/`.
 
 4. **Perluasan ke Sektor Lain**
    Menambahkan sektor peternakan dan perikanan setelah sektor pertanian matang.
