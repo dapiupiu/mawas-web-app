@@ -12,6 +12,11 @@ export type VerificationStatus = "menunggu" | "terverifikasi" | "perlu_cek";
 
 export type UserRole = "superadmin" | "operator";
 
+export interface DashboardNotice {
+  success: boolean;
+  message: string;
+}
+
 export interface ManagedUser {
   id: string;
   name: string;
@@ -31,6 +36,9 @@ export interface PredictionItem {
   skorRisiko: number | null; // Skor model asli (0.00 - 1.00) atau null jika data tidak tersedia. Read-only.
   kategori: RiskLevel;
   faktorPenyebab?: string;
+  tanggal?: string;
+  horizonHari?: number;
+  statusData?: string;
   statusVerifikasi: VerificationStatus;
   catatanOperator?: string;
   diverifikasiOleh?: string;
@@ -44,6 +52,8 @@ export interface KnowledgeArticle {
   kategori: string;
   /** Optional cover image. Cards and read page adapt when absent. */
   thumbnailUrl?: string;
+  /** Storage object path, used when updating or replacing the cover image. */
+  thumbnailPath?: string;
   /** Display name; defaults to Admin when omitted. */
   penulis?: string;
   diperbaruiPada: string;

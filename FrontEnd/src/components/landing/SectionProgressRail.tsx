@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 const sections = [
   { id: "beranda", label: "Peta", title: "Baca wilayah" },
-  { id: "status-wilayah", label: "Status risiko", title: "Per kabupaten" },
+  { id: "status-wilayah", label: "Status risiko", title: "Per kabupaten/kota" },
   { id: "artikel", label: "Artikel", title: "Panduan mitigasi" },
   { id: "cara-kerja", label: "Cara kerja", title: "Dari sinyal ke respons" },
   { id: "pertanyaan", label: "FAQ", title: "Pertanyaan umum" },

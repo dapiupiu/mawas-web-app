@@ -76,6 +76,7 @@ export function PublicRiskMapPage() {
   );
   const [isLoadingKab, setIsLoadingKab] = useState(false);
   const [loadKabError, setLoadKabError] = useState<string | null>(null);
+  const [loadRiskError, setLoadRiskError] = useState<string | null>(null);
 
   // Navigation and selection state
   const [granularity, setGranularity] = useState<MapGranularity>("provinsi");
@@ -158,6 +159,7 @@ export function PublicRiskMapPage() {
       .then((items) => {
         if (!ignore) {
           setRiskItems(items);
+          setLoadRiskError(null);
           const dates = items
             .map((item) => item.tanggal)
             .filter((date): date is string => Boolean(date))
@@ -167,6 +169,11 @@ export function PublicRiskMapPage() {
       })
       .catch((err) => {
         console.warn("Gagal memuat risiko:", err);
+        if (!ignore) {
+          setLoadRiskError(
+            err instanceof Error ? err.message : "Gagal memuat data risiko dari server.",
+          );
+        }
       });
 
     return () => {
@@ -433,7 +440,7 @@ export function PublicRiskMapPage() {
       .then((res) => {
         if (!res.ok)
           throw new Error(
-            `Berkas kabupaten untuk kode ${provinceKode} tidak ditemukan.`,
+            `Berkas batas kabupaten/kota untuk kode ${provinceKode} tidak ditemukan.`,
           );
         return res.json();
       })
@@ -443,7 +450,7 @@ export function PublicRiskMapPage() {
       })
       .catch((err) => {
         setLoadKabError(
-          err instanceof Error ? err.message : "Gagal memuat batas kabupaten.",
+          err instanceof Error ? err.message : "Gagal memuat batas kabupaten/kota.",
         );
         setIsLoadingKab(false);
       });
@@ -756,7 +763,7 @@ export function PublicRiskMapPage() {
             }`}
           >
             <Layers className="size-3.5" />
-            Tingkat Kabupaten
+            Tingkat Kabupaten/Kota
           </button>
         </div>
 
@@ -862,7 +869,7 @@ export function PublicRiskMapPage() {
             <RefreshCw className="size-6 animate-spin text-[#173e32]" />
             <p className="text-sm font-semibold text-[#173e32]">
               {granularity === "kabupaten"
-                ? `Memuat batas kabupaten untuk ${selectedProvinceName || "wilayah terpilih"}...`
+                ? `Memuat batas kabupaten/kota untuk ${selectedProvinceName || "wilayah terpilih"}...`
                 : "Memuat batas wilayah 34 provinsi Indonesia..."}
             </p>
             <p className="text-xs text-[#557267]">
@@ -871,7 +878,7 @@ export function PublicRiskMapPage() {
           </div>
         )}
 
-        {(loadProvError || loadKabError) && (
+        {(loadProvError || loadKabError || loadRiskError) && (
           <div
             role="alert"
             className="z-20 max-w-sm rounded-xl border border-[#bb5b42]/30 bg-[#fce8e6] p-6 text-[#7c1d0f] shadow-md"
@@ -879,17 +886,17 @@ export function PublicRiskMapPage() {
             <div className="flex items-center gap-2">
               <AlertCircle className="size-5 shrink-0 text-[#bb5b42]" />
               <h2 className="font-semibold text-sm">
-                Gagal Memuat Berkas Peta
+                Gagal Memuat Peta atau Data Risiko
               </h2>
             </div>
             <p className="mt-2 text-xs leading-5 text-[#7c1d0f]">
-              {loadProvError || loadKabError}
+              {loadProvError || loadKabError || loadRiskError}
             </p>
             <Button
               type="button"
               variant="outline"
               onClick={() => {
-                if (loadProvError) window.location.reload();
+                if (loadProvError || loadRiskError) window.location.reload();
                 if (loadKabError && selectedProvinceFeature) {
                   loadKabupatenForProvince(
                     selectedProvinceFeature.properties.kode,
@@ -920,7 +927,7 @@ export function PublicRiskMapPage() {
               role="img"
               aria-label={
                 granularity === "kabupaten" && selectedProvinceName
-                  ? `Peta kabupaten di Provinsi ${selectedProvinceName}`
+                  ? `Peta kabupaten/kota di Provinsi ${selectedProvinceName}`
                   : "Peta wilayah Indonesia. Gunakan kontrol zoom atau geser untuk menjelajah."
               }
             >
@@ -1015,7 +1022,7 @@ export function PublicRiskMapPage() {
                   {/* Active Province Kabupaten Boundaries */}
                   <g
                     role="group"
-                    aria-label={`Batas kabupaten di ${selectedProvinceName || "provinsi terpilih"}`}
+                    aria-label={`Batas kabupaten/kota di ${selectedProvinceName || "provinsi terpilih"}`}
                   >
                     {projectedKabupaten.map(({ feature, path }) => {
                       const props = feature.properties;
@@ -1137,7 +1144,7 @@ export function PublicRiskMapPage() {
           <span className="truncate">
             {selectedKabupatenName || selectedProvinceName
               ? `${selectedKabupatenName || selectedProvinceName}`
-              : "Cari provinsi atau kabupaten..."}
+              : "Cari provinsi atau kabupaten/kota..."}
           </span>
         </button>
         <button
@@ -1173,7 +1180,7 @@ export function PublicRiskMapPage() {
                 Cek risiko wilayah
               </h1>
               <p className="mt-1 text-xs leading-5 text-[#557267]">
-                Pemantauan stres vegetasi hingga tingkat kabupaten.
+                Pemantauan stres vegetasi hingga tingkat kabupaten/kota.
               </p>
             </div>
           </div>
@@ -1219,7 +1226,7 @@ export function PublicRiskMapPage() {
                 : "text-[#36564a] hover:bg-[#dce7d7]"
             }`}
           >
-            Peta Kabupaten
+            Peta Kabupaten/Kota
           </button>
         </div>
 
@@ -1301,8 +1308,8 @@ export function PublicRiskMapPage() {
             onChange={(kab) => selectKabupaten(kab)}
             placeholder={
               selectedProvinceName
-                ? `Cari kabupaten di ${selectedProvinceName}...`
-                : "Cari salah satu dari 514 kabupaten..."
+                ? `Cari kabupaten/kota di ${selectedProvinceName}...`
+                : "Cari salah satu dari 514 kabupaten/kota..."
             }
           />
 
@@ -1506,7 +1513,7 @@ export function PublicRiskMapPage() {
                               { day: "numeric", month: "long", year: "numeric" },
                             )}{" "}
                             (bukan real-time). Skor adalah peringkat relatif, bukan prakiraan absolut;
-                            data hujan masih prelim dan 41 kabupaten tidak memiliki data cuaca.
+                            data hujan masih prelim dan 41 kabupaten/kota tidak memiliki data cuaca.
                             Urutan risiko bersifat indikatif dan model belum mengungguli aturan sederhana;
                             verifikasi lapangan tetap diperlukan.
                           </p>
@@ -1538,7 +1545,7 @@ export function PublicRiskMapPage() {
                         </div>
                       ) : (
                         <p className="text-xs text-[#557267]">
-                          Pilih kabupaten untuk membaca analisis wilayah.
+                          Pilih kabupaten/kota untuk membaca analisis wilayah.
                         </p>
                       )}
 
@@ -1631,7 +1638,7 @@ export function PublicRiskMapPage() {
                       className="w-full min-h-11 bg-[#173e32] text-[#f5f1e8] text-xs font-semibold hover:bg-[#245542]"
                     >
                       <Layers className="size-4" />
-                      Buka Peta Kabupaten di{" "}
+                      Buka Peta Kabupaten/Kota di{" "}
                       {selectedProvinceFeature.properties.name}
                     </Button>
                   )}
@@ -1642,7 +1649,7 @@ export function PublicRiskMapPage() {
             <div className="mt-3 rounded-lg border border-dashed border-[#173e32]/25 bg-white/40 p-4 text-center">
               <Info className="mx-auto size-5 text-[#557267]" />
               <p className="mt-1 text-xs text-[#36564a]">
-                Klik provinsi atau kabupaten pada peta untuk melihat indikator
+                Klik provinsi atau kabupaten/kota pada peta untuk melihat indikator
                 risiko vegetasi, skor deviasi, dan rekomendasi AI.
               </p>
             </div>

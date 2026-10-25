@@ -8,13 +8,13 @@ import type { PredictionItem, VerificationStatus } from "@/types/dashboard";
 
 interface ReportsViewProps {
   predictions: PredictionItem[];
+  onGoToVerification: () => void;
 }
 
-export function ReportsView({ predictions }: ReportsViewProps) {
+export function ReportsView({ predictions, onGoToVerification }: ReportsViewProps) {
   const [province, setProvince] = useState("Semua Provinsi");
   const [riskFilter, setRiskFilter] = useState<"kritis" | "kritis_waspada" | "semua">("kritis");
   const [verificationFilter, setVerificationFilter] = useState<"semua" | VerificationStatus>("semua");
-  const [generated, setGenerated] = useState(true);
 
   // Extract unique provinces
   const provinces = useMemo(() => {
@@ -129,13 +129,13 @@ export function ReportsView({ predictions }: ReportsViewProps) {
         {/* Generate / Action Buttons */}
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#173e32]/10 pt-4">
           <div className="text-xs text-[#557267]">
-            Ditemukan <strong className="text-[#173e32]">{totalItems}</strong> kabupaten sesuai kriteria filter.
+            Ditemukan <strong className="text-[#173e32]">{totalItems}</strong> kabupaten/kota sesuai kriteria filter.
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setGenerated(true)}
+              onClick={onGoToVerification}
               className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#173e32] px-4 text-xs font-bold text-[#f5f1e8] hover:bg-[#245542] transition-colors focus-visible:outline-2 focus-visible:outline-[#10b981]"
             >
               <FileCheck className="size-4" />
@@ -155,8 +155,7 @@ export function ReportsView({ predictions }: ReportsViewProps) {
       </section>
 
       {/* Official Printable Report Document */}
-      {generated && (
-        <section 
+      <section
           id="official-report-doc"
           className="rounded-xl border border-[#173e32]/15 bg-white p-6 sm:p-10 shadow-md print:border-none print:shadow-none print:p-0"
         >
@@ -187,7 +186,7 @@ export function ReportsView({ predictions }: ReportsViewProps) {
           <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="rounded-lg border border-[#173e32]/12 bg-[#fbfaf6] p-3 text-center">
               <span className="block font-mono text-2xl font-bold text-[#173e32]">{totalItems}</span>
-              <span className="text-[11px] font-semibold text-[#557267]">Total Kabupaten</span>
+              <span className="text-[11px] font-semibold text-[#557267]">Total Kabupaten/Kota</span>
             </div>
             <div className="rounded-lg border border-[#991b1b]/25 bg-[#991b1b]/5 p-3 text-center">
               <span className="block font-mono text-2xl font-bold text-[#991b1b]">{criticalCount}</span>
@@ -226,7 +225,7 @@ export function ReportsView({ predictions }: ReportsViewProps) {
                 {reportItems.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="p-8 text-center text-sm text-[#557267]">
-                      Tidak ada kabupaten yang memenuhi kriteria filter laporan.
+                      Tidak ada kabupaten/kota yang memenuhi kriteria filter laporan.
                     </td>
                   </tr>
                 ) : (
@@ -291,7 +290,6 @@ export function ReportsView({ predictions }: ReportsViewProps) {
             </div>
           </div>
         </section>
-      )}
     </div>
   );
 }

@@ -41,6 +41,7 @@ export function AgriStatusPanel({ selectedProvince: propProvince }: AgriStatusPa
   const [searchParams] = useSearchParams();
   const [allRisiko, setAllRisiko] = useState<RisikoItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [riskLoadError, setRiskLoadError] = useState<string | null>(null);
   const [userProvince, setUserProvince] = useState<string | null>(null);
   const shouldReduceMotion = useReducedMotion();
 
@@ -52,12 +53,16 @@ export function AgriStatusPanel({ selectedProvince: propProvince }: AgriStatusPa
       .then((items) => {
         if (active) {
           setAllRisiko(latestRisikoPerKabupaten(items));
+          setRiskLoadError(null);
           setIsLoading(false);
         }
       })
       .catch((err) => {
         console.error("Gagal memuat risiko kabupaten:", err);
-        if (active) setIsLoading(false);
+        if (active) {
+          setRiskLoadError("Data risiko gagal dimuat dari server. Coba muat ulang halaman.");
+          setIsLoading(false);
+        }
       });
 
     return () => {
@@ -153,7 +158,7 @@ export function AgriStatusPanel({ selectedProvince: propProvince }: AgriStatusPa
     <section
       id="status-wilayah"
       className="border-b border-[#173e32]/10 bg-[#fbfaf5] px-4 py-10 sm:px-6 sm:py-14 lg:px-10 xl:px-12 lg:py-16"
-      aria-label={`Rincian risiko kabupaten di ${activeProvince}`}
+      aria-label={`Rincian risiko kabupaten/kota di ${activeProvince}`}
     >
       <div className="mx-auto w-full max-w-[1680px]">
         {/* Header Section */}
@@ -199,12 +204,16 @@ export function AgriStatusPanel({ selectedProvince: propProvince }: AgriStatusPa
           </div>
         </Reveal>
 
-        {/* Table of Kabupaten */}
+        {/* Tabel kabupaten/kota */}
         <Reveal>
           <div className="overflow-x-auto rounded-xl border border-[#173e32]/12 bg-[#f5f1e8] shadow-sm">
             {isLoading ? (
               <div className="py-16 text-center text-sm text-[#173e32]/60">
                 Memuat data model risiko wilayah...
+              </div>
+            ) : riskLoadError ? (
+              <div role="alert" className="py-16 text-center text-sm text-[#991b1b]">
+                {riskLoadError}
               </div>
             ) : (
               <table className="w-full min-w-[700px] border-collapse text-left text-xs">

@@ -17,7 +17,7 @@ const steps = [
   {
     number: "02",
     title: "Estimasi risiko 30 hari",
-    body: "Data diolah menjadi estimasi tingkat stres vegetasi per kabupaten sebagai indikator awal kekeringan pertanian.",
+    body: "Data diolah menjadi estimasi tingkat stres vegetasi per kabupaten/kota sebagai indikator awal kekeringan pertanian.",
     icon: CircleAlert,
   },
   {

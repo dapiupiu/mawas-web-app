@@ -1,5 +1,5 @@
 import axios from "axios"
-import type { ManagedUser } from "@/types/dashboard"
+import type { KnowledgeArticle, ManagedUser } from "@/types/dashboard"
 
 const BASE_URL = import.meta.env.DEV ? "" : (import.meta.env.VITE_API_URL ?? "")
 
@@ -132,6 +132,74 @@ export function latestRisikoPerKabupaten(items: RisikoItem[]): RisikoItem[] {
     }
   }
   return Array.from(latest.values())
+}
+
+export interface ArticlePayload {
+  judul: string
+  isi: string
+  kategori: string
+  penulis: string
+  thumbnail_path?: string | null
+}
+
+export interface ArticleMutationResult {
+  article: KnowledgeArticle
+  warning?: string
+}
+
+export const articlesApi = {
+  async getPublished(): Promise<KnowledgeArticle[]> {
+    const { data } = await api.get<{ data: KnowledgeArticle[] }>("/api/articles")
+    return data.data
+  },
+
+  async getPublishedById(id: string): Promise<KnowledgeArticle> {
+    const { data } = await api.get<{ data: KnowledgeArticle }>(
+      `/api/articles/${encodeURIComponent(id)}`,
+    )
+    return data.data
+  },
+
+  async getManage(): Promise<KnowledgeArticle[]> {
+    const { data } = await api.get<{ data: KnowledgeArticle[] }>("/api/articles/manage")
+    return data.data
+  },
+
+  async create(payload: ArticlePayload): Promise<ArticleMutationResult> {
+    const { data } = await api.post<{ data: KnowledgeArticle; warning?: string }>(
+      "/api/articles",
+      payload,
+    )
+    return { article: data.data, warning: data.warning }
+  },
+
+  async update(id: string, payload: ArticlePayload): Promise<ArticleMutationResult> {
+    const { data } = await api.patch<{ data: KnowledgeArticle; warning?: string }>(
+      `/api/articles/${encodeURIComponent(id)}`,
+      payload,
+    )
+    return { article: data.data, warning: data.warning }
+  },
+
+  async delete(id: string): Promise<{ warning?: string }> {
+    const { data } = await api.delete<{ warning?: string }>(
+      `/api/articles/${encodeURIComponent(id)}`,
+    )
+    return { warning: data.warning }
+  },
+
+  async uploadImage(file: File): Promise<{ path: string; url: string }> {
+    const { data } = await api.post<{ data: { path: string; url: string } }>(
+      "/api/articles/upload-image",
+      await file.arrayBuffer(),
+      { headers: { "Content-Type": file.type } },
+    )
+    return data.data
+  },
+
+  async deleteImage(path: string): Promise<void> {
+    await api.delete("/api/articles/upload-image", { data: { path } })
+  },
 }
 
 export interface AnalisisAIResponse {
@@ -347,76 +415,67 @@ export function checkAndStoreOAuthCallback(): boolean {
 // ─── Risiko endpoints ─────────────────────────────────────────────────────────
 
 let cachedRisikoItems: RisikoItem[] | null = null
-let cachedFeIdByCode: Promise<Map<string, string>> | null = null
-
-async function getStaticFeIdByCode(): Promise<Map<string, string>> {
-  if (!cachedFeIdByCode) {
-    cachedFeIdByCode = (async () => {
-      const idByCode = new Map<string, string>()
-      try {
-        const response = await fetch("/data/risiko_kabupaten_terbaru.json")
-        if (!response.ok) {
-          throw new Error(`Status ${response.status}`)
-        }
-        const json = await response.json()
-        const items = Array.isArray(json) ? json : json.data || []
-        for (const item of items as RiskApiItem[]) {
-          if (item.kode_kabupaten && item.id_fe) {
-            idByCode.set(item.kode_kabupaten, item.id_fe)
-          }
-        }
-      } catch (error) {
-        console.warn("Gagal memuat indeks id_fe untuk mencocokkan risiko ke geometri peta.", error)
-      }
-      return idByCode
-    })()
-  }
-  return cachedFeIdByCode
-}
+let cachedRisikoRequest: Promise<RisikoItem[]> | null = null
 
 export const risikoApi = {
-  /** Fetch risiko dari backend; JSON lokal hanya menjadi fallback saat backend gagal. */
+  /** Ambil seluruh snapshot risiko dari Supabase melalui Backend. */
   async getAllRisiko(): Promise<RisikoItem[]> {
-    if (cachedRisikoItems && cachedRisikoItems.length > 0) {
+    if (cachedRisikoItems) {
       return cachedRisikoItems
     }
+    if (cachedRisikoRequest) {
+      return cachedRisikoRequest
+    }
 
-    try {
+    cachedRisikoRequest = (async () => {
       const { data } = await api.get<{
         status: string
         total: number
         data: RiskApiItem[]
-      }>("/api/risiko", { timeout: 3000 })
-      if (data && Array.isArray(data.data)) {
-        const feIdByCode = await getStaticFeIdByCode()
-        const normalizedItems = data.data.map((item) => {
-          const normalized = normalizeRiskItem(item, true)
-          return {
-            ...normalized,
-            id_fe: normalized.id_fe || feIdByCode.get(normalized.kode_kabupaten),
-          }
-        })
-        cachedRisikoItems = normalizedItems
-        return normalizedItems
+      }>("/api/risiko", { timeout: 20000 })
+      if (!data || !Array.isArray(data.data)) {
+        throw new Error("Respons data risiko dari server tidak valid.")
       }
-    } catch (error) {
-      console.warn("Backend risiko tidak tersedia; mencoba data JSON lokal.", error)
-    }
+      const normalizedItems = data.data.map((item) => normalizeRiskItem(item, true))
+      cachedRisikoItems = normalizedItems
+      return normalizedItems
+    })()
 
     try {
-      const response = await fetch("/data/risiko_kabupaten_terbaru.json")
-      if (response.ok) {
-        const json = await response.json()
-        const items = Array.isArray(json) ? json : json.data || []
-        const normalizedItems = items.map((item: RiskApiItem) => normalizeRiskItem(item))
-        cachedRisikoItems = normalizedItems
-        return normalizedItems
-      }
-    } catch (err) {
-      console.warn("Gagal membaca berkas risiko_kabupaten_terbaru.json:", err)
+      return await cachedRisikoRequest
+    } finally {
+      cachedRisikoRequest = null
     }
+  },
 
-    return []
+  async importPredictions(payload: unknown): Promise<{
+    total: number
+    metadata: {
+      dihasilkanPada: string
+      tanggalAcuan: string
+      horizonHari: number
+      totalKabupaten: number
+      statusData: string
+      catatan?: string
+    }
+  }> {
+    const { data } = await api.post<{
+      total: number
+      metadata: {
+        dihasilkanPada: string
+        tanggalAcuan: string
+        horizonHari: number
+        totalKabupaten: number
+        statusData: string
+        catatan?: string
+      }
+    }>("/api/risiko/import", payload, { timeout: 60000 })
+    if (!data || !Number.isInteger(data.total) || !data.metadata) {
+      throw new Error("Respons import model dari server tidak valid.")
+    }
+    cachedRisikoItems = null
+    cachedRisikoRequest = null
+    return data
   },
 
   async getRiskTrend(provinsi?: string): Promise<RiskTrendResponse> {
@@ -424,7 +483,7 @@ export const risikoApi = {
       "/api/risiko/trend-nasional",
       {
         params: provinsi ? { provinsi } : undefined,
-        timeout: 5000,
+        timeout: 20000,
       },
     )
     if (!data?.data) {
@@ -439,10 +498,11 @@ export const risikoApi = {
       const { data } = await api.get<{
         status: string
         data: RisikoItem
-      }>(`/api/risiko/${kodeOrId}`, { timeout: 3000 })
+      }>(`/api/risiko/${encodeURIComponent(kodeOrId)}`, { timeout: 15000 })
       if (data?.data) return normalizeRiskItem(data.data, true)
-    } catch {
-      // Fallback ke cache/static data
+      throw new Error("Respons detail risiko dari server tidak valid.")
+    } catch (error) {
+      if (!axios.isAxiosError(error) || error.response?.status !== 404) throw error
     }
 
     const all = await this.getAllRisiko()

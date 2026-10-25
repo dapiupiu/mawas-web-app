@@ -63,6 +63,7 @@ export function RiskMapPreview() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRiskLoading, setIsRiskLoading] = useState(true);
   const [riskItems, setRiskItems] = useState<RisikoItem[]>([]);
+  const [riskLoadError, setRiskLoadError] = useState<string | null>(null);
   const [isZoomedIn, setIsZoomedIn] = useState(true);
   const shouldReduceMotion = useReducedMotion();
 
@@ -146,10 +147,16 @@ export function RiskMapPreview() {
     risikoApi
       .getAllRisiko()
       .then((items) => {
-        if (active) setRiskItems(latestRisikoPerKabupaten(items));
+        if (active) {
+          setRiskItems(latestRisikoPerKabupaten(items));
+          setRiskLoadError(null);
+        }
       })
       .catch((error) => {
         console.error("Gagal memuat risiko untuk pratinjau peta:", error);
+        if (active) {
+          setRiskLoadError("Data risiko gagal dimuat dari server.");
+        }
       })
       .finally(() => {
         if (active) setIsRiskLoading(false);
@@ -310,6 +317,10 @@ export function RiskMapPreview() {
         {isLoading || isRiskLoading ? (
           <div className="flex h-[260px] sm:h-[320px] w-full items-center justify-center text-xs text-[#557267]">
             Memuat peta wilayah...
+          </div>
+        ) : riskLoadError ? (
+          <div role="alert" className="flex h-[260px] w-full items-center justify-center px-6 text-center text-xs text-[#991b1b] sm:h-[320px]">
+            {riskLoadError}
           </div>
         ) : (
           <motion.svg

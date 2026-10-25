@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { isAxiosError } from "axios";
@@ -15,16 +15,8 @@ import {
   Calendar,
   X
 } from "lucide-react";
-import { api, authApi, getStoredUser, saveSession, type StoredUser } from "@/lib/api";
-import type { DashboardTab, KnowledgeArticle, PredictionItem, ManagedUser } from "@/types/dashboard";
-import { 
-  getDashboardArticles, 
-  saveDashboardArticles, 
-  saveDashboardPredictions,
-  getDashboardModelMeta,
-  saveDashboardModelMeta,
-  type ModelMetadata
-} from "@/lib/dashboardData";
+import { api, articlesApi, authApi, getStoredUser, saveSession, type StoredUser } from "@/lib/api";
+import type { DashboardNotice, DashboardTab, KnowledgeArticle, PredictionItem, ManagedUser } from "@/types/dashboard";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { VerificationView } from "@/components/dashboard/VerificationView";
@@ -43,14 +35,16 @@ export function DashboardPage() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [predictions, setPredictions] = useState<PredictionItem[]>([]);
   const [articles, setArticles] = useState<KnowledgeArticle[]>([]);
+  const [isArticlesLoading, setIsArticlesLoading] = useState(true);
+  const [articlesLoadError, setArticlesLoadError] = useState<string | null>(null);
   const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [isUsersLoading, setIsUsersLoading] = useState(false);
   const [usersLoadError, setUsersLoadError] = useState<string | null>(null);
+  const [isPredictionsLoading, setIsPredictionsLoading] = useState(true);
+  const [predictionsLoadError, setPredictionsLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<PredictionItem | null>(null);
-  const [verificationNotice, setVerificationNotice] = useState<{
-    success: boolean;
-    message: string;
-  } | null>(null);
-  const [modelMeta, setModelMeta] = useState<ModelMetadata>(getDashboardModelMeta());
+  const [dashboardNotice, setDashboardNotice] = useState<DashboardNotice | null>(null);
+  const notify = useCallback((notice: DashboardNotice) => setDashboardNotice(notice), []);
 
   useEffect(() => {
     const stored = getStoredUser();
@@ -66,9 +60,20 @@ export function DashboardPage() {
     }
     setUser(stored);
 
-    setArticles(getDashboardArticles());
-    setModelMeta(getDashboardModelMeta());
+    (stored.role === "superadmin" ? articlesApi.getManage() : articlesApi.getPublished())
+      .then((items) => {
+        setArticles(items);
+        setArticlesLoadError(null);
+      })
+      .catch((error) => {
+        console.error("Gagal memuat artikel CMS dari backend:", error);
+        setArticlesLoadError("Daftar artikel tidak dapat dimuat. Periksa koneksi lalu coba lagi.");
+        notify({ success: false, message: "Artikel tidak dapat dimuat. Periksa koneksi lalu coba lagi." });
+      })
+      .finally(() => setIsArticlesLoading(false));
+
     if (stored.role === "superadmin") {
+      setIsUsersLoading(true);
       authApi.getOperators()
         .then((items) => {
           setUsers(items);
@@ -76,22 +81,30 @@ export function DashboardPage() {
         })
         .catch((error) => {
           console.error("Gagal memuat akun operator dari backend:", error);
-          setUsersLoadError("Daftar akun gagal dimuat dari Backend. Muat ulang halaman atau periksa koneksi.");
-        });
+          setUsersLoadError("Daftar akun tidak dapat dimuat. Periksa koneksi lalu coba lagi.");
+          notify({ success: false, message: "Daftar akun tidak dapat dimuat. Periksa koneksi lalu coba lagi." });
+        })
+        .finally(() => setIsUsersLoading(false));
     }
 
     api.get<{ data: PredictionItem[] }>("/api/verifikasi")
-      .then(({ data }) => setPredictions(data.data))
+      .then(({ data }) => {
+        setPredictions(data.data);
+        setPredictionsLoadError(null);
+      })
       .catch((error) => {
         console.error("Gagal memuat prediksi Dashboard dari backend:", error);
-      });
-  }, [navigate]);
+        setPredictionsLoadError("Data risiko tidak dapat dimuat. Periksa koneksi lalu coba lagi.");
+        notify({ success: false, message: "Data risiko tidak dapat dimuat. Periksa koneksi lalu coba lagi." });
+      })
+      .finally(() => setIsPredictionsLoading(false));
+  }, [navigate, notify]);
 
   useEffect(() => {
-    if (!verificationNotice) return;
-    const timeout = window.setTimeout(() => setVerificationNotice(null), 5000);
+    if (!dashboardNotice) return;
+    const timeout = window.setTimeout(() => setDashboardNotice(null), 4500);
     return () => window.clearTimeout(timeout);
-  }, [verificationNotice]);
+  }, [dashboardNotice]);
 
   if (!user) {
     return (
@@ -105,13 +118,17 @@ export function DashboardPage() {
   }
 
   const critical = predictions.filter((item) => item.kategori === "kritis");
+  const pendingCritical = critical.filter((item) => item.statusVerifikasi === "menunggu");
   const warning = predictions.filter((item) => item.kategori === "waspada");
   const pending = predictions.filter((item) => item.statusVerifikasi === "menunggu");
   const verified = predictions.filter((item) => item.statusVerifikasi === "terverifikasi");
+  const modelReferenceDate = predictions.reduce((latest, item) => {
+    const date = item.tanggal || "";
+    return date > latest ? date : latest;
+  }, "");
 
   const changeArticles = (next: KnowledgeArticle[]) => {
     setArticles(next);
-    saveDashboardArticles(next);
   };
 
   const saveVerification = async (next: PredictionItem) => {
@@ -120,7 +137,6 @@ export function DashboardPage() {
         kodeKabupaten: next.kodeKabupaten,
         statusVerifikasi: next.statusVerifikasi,
         catatanOperator: next.catatanOperator,
-        diverifikasiOleh: next.diverifikasiOleh,
       });
       setPredictions((current) =>
         current.map((item) => item.kodeKabupaten === data.data.kodeKabupaten ? data.data : item)
@@ -133,15 +149,19 @@ export function DashboardPage() {
     }
   };
 
-  const handleModelUpdated = (newPreds: PredictionItem[], meta: ModelMetadata) => {
-    setPredictions(newPreds);
-    saveDashboardPredictions(newPreds);
-    setModelMeta(meta);
-    saveDashboardModelMeta(meta);
-  };
-
-  const handleUsersChange = (nextUsers: ManagedUser[]) => {
-    setUsers(nextUsers);
+  const handleModelUpdated = async () => {
+    setIsPredictionsLoading(true);
+    try {
+      const { data } = await api.get<{ data: PredictionItem[] }>("/api/verifikasi");
+      setPredictions(data.data);
+      setPredictionsLoadError(null);
+    } catch (error) {
+      console.error("Model tersimpan, tetapi data terbaru gagal dimuat ulang:", error);
+      setPredictionsLoadError("Pembaruan tersimpan, tetapi data terbaru belum tampil. Muat ulang halaman untuk melihat pembaruan.");
+      throw error;
+    } finally {
+      setIsPredictionsLoading(false);
+    }
   };
 
   return (
@@ -188,6 +208,16 @@ export function DashboardPage() {
               {/* 1. Ringkasan Eksekutif Wilayah (SS 4) */}
               {tab === "ringkasan" && (
                 <div className="space-y-6">
+                  {isPredictionsLoading && (
+                    <p role="status" className="text-xs text-[#557267]">
+                      Menyinkronkan ringkasan dengan data terbaru…
+                    </p>
+                  )}
+                  {predictionsLoadError && (
+                    <p role="alert" className="rounded-lg border border-[#991b1b]/20 bg-[#fee2e2] p-3 text-xs text-[#991b1b]">
+                      {predictionsLoadError}
+                    </p>
+                  )}
                   {/* Hero Executive Card with Giant "Buat Laporan" Button */}
                   <section className="grid gap-6 rounded-2xl border border-[#173e32]/15 bg-white p-6 sm:p-8 lg:grid-cols-[1.3fr_0.9fr] shadow-sm">
                     <div className="flex flex-col justify-between">
@@ -242,22 +272,22 @@ export function DashboardPage() {
                             {critical.length}
                           </p>
                           <p className="text-sm font-bold text-[#991b1b]">
-                            Kabupaten Risiko Tinggi
+                            Kabupaten/Kota Berisiko Tinggi
                           </p>
                         </div>
 
                         <div className="mt-4 space-y-2 border-t border-[#b45309]/20 pt-3 text-xs text-[#78350f]">
                           <div className="flex items-center justify-between">
                             <span>Belum Diverifikasi Lapangan:</span>
-                            <strong className="font-mono text-sm text-[#92400e]">{pending.length} Kabupaten</strong>
+                            <strong className="font-mono text-sm text-[#92400e]">{pending.length} Kabupaten/Kota</strong>
                           </div>
                           <div className="flex items-center justify-between">
                             <span>Telah Terverifikasi Lapangan:</span>
-                            <strong className="font-mono text-sm text-[#166534]">{verified.length} Kabupaten</strong>
+                            <strong className="font-mono text-sm text-[#166534]">{verified.length} Kabupaten/Kota</strong>
                           </div>
                           <div className="flex items-center justify-between">
                             <span>Status Peringatan Waspada:</span>
-                            <strong className="font-mono text-sm text-[#b45309]">{warning.length} Kabupaten</strong>
+                            <strong className="font-mono text-sm text-[#b45309]">{warning.length} Kabupaten/Kota</strong>
                           </div>
                         </div>
                       </div>
@@ -266,7 +296,7 @@ export function DashboardPage() {
                       <div className="mt-4 rounded-lg bg-white/70 p-2.5 text-[11px] text-[#557267] border border-[#b45309]/15">
                         <div className="flex items-center gap-1.5 font-semibold text-[#173e32]">
                           <Calendar className="size-3.5 text-[#10b981]" />
-                          <span>Tanggal Acuan Model: {modelMeta.tanggalAcuan}</span>
+                          <span>Tanggal Acuan Model: {modelReferenceDate || "Data belum tersedia"}</span>
                         </div>
                         <p className="mt-0.5 text-[10px]">
                           Cakupan {predictions.length} kabupaten/kota se-Indonesia.
@@ -360,17 +390,17 @@ export function DashboardPage() {
                   </section>
 
                   {/* Priority Attention List (Risiko Tinggi Kritis) */}
-                  {critical.length > 0 && (
+                  {pendingCritical.length > 0 && (
                     <section className="rounded-2xl border border-[#991b1b]/25 bg-white p-6 shadow-sm">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-[#991b1b]/15 pb-4">
                         <div className="flex items-center gap-2.5">
                           <AlertTriangle className="size-5 text-[#991b1b]" />
                           <div>
                             <h2 className="font-serif text-lg font-bold text-[#991b1b]">
-                              Wilayah Prioritas Pengawasan Tinggi ({critical.length} Kabupaten)
+                              Wilayah Prioritas Pengawasan Tinggi ({pendingCritical.length} Menunggu Review)
                             </h2>
                             <p className="text-xs text-[#557267]">
-                              Menunjukkan indikasi deviasi penyerapan klorofil tanaman terendah pada horizon 30 hari.
+                              Menampilkan hingga 6 wilayah berisiko tinggi yang belum ditinjau. Wilayah yang sudah diperiksa akan digantikan oleh antrean berikutnya.
                             </p>
                           </div>
                         </div>
@@ -387,7 +417,7 @@ export function DashboardPage() {
 
                       {/* Compact Table of Top Critical Areas */}
                       <div className="mt-4 divide-y divide-[#173e32]/8 overflow-x-auto">
-                        {critical.slice(0, 6).map((item) => (
+                        {pendingCritical.slice(0, 6).map((item) => (
                           <div
                             key={item.id}
                             className="flex flex-wrap items-center justify-between gap-3 py-3 px-2 rounded-lg hover:bg-[#fbfaf6] transition-colors"
@@ -439,13 +469,18 @@ export function DashboardPage() {
               {tab === "verifikasi" && (
                 <VerificationView
                   predictions={predictions}
+                  isLoading={isPredictionsLoading}
+                  loadError={predictionsLoadError}
                   onOpenVerifyModal={setSelected}
                 />
               )}
 
               {/* 3. Modul 2: Generator Laporan */}
               {tab === "laporan" && (
-                <ReportsView predictions={predictions} />
+                <ReportsView
+                  predictions={predictions}
+                  onGoToVerification={() => setTab("verifikasi")}
+                />
               )}
 
               {/* 4. Modul 3: CMS Artikel / Panduan */}
@@ -453,6 +488,10 @@ export function DashboardPage() {
                 <ArticlesView
                   articles={articles}
                   onChange={changeArticles}
+                  canManage={user.role === "superadmin"}
+                  isLoading={isArticlesLoading}
+                  loadError={articlesLoadError}
+                  onNotify={notify}
                 />
               )}
 
@@ -461,6 +500,7 @@ export function DashboardPage() {
                 <UploadModelView
                   currentPredictions={predictions}
                   onModelUpdated={handleModelUpdated}
+                  onNotify={notify}
                 />
               )}
 
@@ -468,8 +508,10 @@ export function DashboardPage() {
               {tab === "pengguna" && user.role === "superadmin" && (
                 <UserManagementView
                   users={users}
-                  onUsersChange={handleUsersChange}
+                  onUsersChange={setUsers}
+                  isLoading={isUsersLoading}
                   loadError={usersLoadError}
+                  onNotify={notify}
                 />
               )}
             </motion.div>
@@ -483,12 +525,13 @@ export function DashboardPage() {
         isOpen={Boolean(selected)}
         onClose={() => setSelected(null)}
         onSave={saveVerification}
-        onSaveResult={setVerificationNotice}
+        onSaveResult={notify}
       />
       {profileOpen && (
         <ProfileSettingsModal
           user={user}
           onClose={() => setProfileOpen(false)}
+          onNotify={notify}
           onSaved={(updatedUser) => {
             const token = localStorage.getItem("mawas_token");
             if (token) saveSession(token, updatedUser);
@@ -496,30 +539,37 @@ export function DashboardPage() {
           }}
         />
       )}
-      {verificationNotice && (
-        <div
-          role={verificationNotice.success ? "status" : "alert"}
-          aria-live={verificationNotice.success ? "polite" : "assertive"}
-          className={`fixed bottom-4 right-4 z-[60] flex w-[calc(100%-2rem)] max-w-md items-start gap-3 rounded-xl border p-4 shadow-xl ${
-            verificationNotice.success
-              ? "border-[#166534]/30 bg-[#dcfce7] text-[#14532d]"
-              : "border-[#991b1b]/30 bg-[#fee2e2] text-[#991b1b]"
-          }`}
-        >
-          {verificationNotice.success
-            ? <CheckCircle2 className="mt-0.5 size-5 shrink-0" />
-            : <CircleAlert className="mt-0.5 size-5 shrink-0" />}
-          <p className="flex-1 text-sm font-semibold">{verificationNotice.message}</p>
-          <button
-            type="button"
-            onClick={() => setVerificationNotice(null)}
-            className="grid size-7 shrink-0 place-items-center rounded-md hover:bg-black/5"
-            aria-label="Tutup notifikasi"
+      <AnimatePresence>
+        {dashboardNotice && (
+          <motion.div
+            key={`${dashboardNotice.success}-${dashboardNotice.message}`}
+            role={dashboardNotice.success ? "status" : "alert"}
+            aria-live={dashboardNotice.success ? "polite" : "assertive"}
+            initial={{ opacity: 0, x: 20, y: -8 }}
+            animate={{ opacity: 1, x: 0, y: 0 }}
+            exit={{ opacity: 0, x: 20, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className={`fixed right-4 top-4 z-[80] flex w-[calc(100%-2rem)] max-w-sm items-start gap-2.5 rounded-lg border p-3 shadow-lg ${
+              dashboardNotice.success
+                ? "border-[#166534]/25 bg-[#dcfce7] text-[#14532d]"
+                : "border-[#991b1b]/25 bg-[#fee2e2] text-[#991b1b]"
+            }`}
           >
-            <X className="size-4" />
-          </button>
-        </div>
-      )}
+            {dashboardNotice.success
+              ? <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+              : <CircleAlert className="mt-0.5 size-4 shrink-0" />}
+            <p className="flex-1 text-xs font-semibold leading-relaxed">{dashboardNotice.message}</p>
+            <button
+              type="button"
+              onClick={() => setDashboardNotice(null)}
+              className="grid size-6 shrink-0 place-items-center rounded-md hover:bg-black/5"
+              aria-label="Tutup notifikasi"
+            >
+              <X className="size-3.5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
