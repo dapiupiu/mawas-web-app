@@ -61,9 +61,9 @@
 
 ## Deskripsi Singkat Proyek
 
-**Mawas** adalah aplikasi web full-stack yang membaca indikasi risiko kekeringan pertanian dan stres vegetasi untuk **514 kabupaten/kota di seluruh Indonesia**. Sistem menyertakan field `horizon_hari` = 30 sebagai konstanta kontrak perencanaan. Sistem ini mengolah anomali vegetasi satelit (FAPAR) dan konteks curah hujan, menghitung skor risiko relatif antar-kabupaten, lalu menampilkannya dalam kategori **Rendah**, **Sedang**, atau **Tinggi** pada peta interaktif.
+Mawas adalah aplikasi web full-stack yang menampilkan indikasi risiko kekeringan pertanian dan stres vegetasi untuk 514 kabupaten/kota di Indonesia. Sistem mengolah anomali vegetasi satelit (FAPAR) dan konteks curah hujan, membandingkan kondisi tiap kabupaten dengan kebiasaannya sendiri, lalu menyajikan skor relatif antar-kabupaten dalam kategori Rendah, Sedang, atau Tinggi pada peta interaktif. Wilayah yang datanya belum memadai ditandai Data tidak tersedia (173 dari 514 pada tanggal acuan 11 Sep 2026). Hasil dipakai sebagai indikator awal dengan horizon perencanaan 30 hari.
 
-Mawas dirancang untuk dua kelompok pengguna. **Publik** dapat membaca peta risiko, status wilayah, dan artikel edukasi tanpa login. **Operator dan Superadmin** menggunakan dashboard untuk memverifikasi hasil analisis, membuat laporan, memperbarui data model, dan mengelola konten, dengan bantuan **analisis teks GenAI** yang menjelaskan kondisi tiap kabupaten dalam bahasa Indonesia sederhana.
+Publik dapat membaca peta risiko, status wilayah, dan artikel edukasi tanpa login, serta melihat analisis teks GenAI yang menjelaskan kondisi tiap kabupaten dalam bahasa Indonesia sederhana. Operator dan Superadmin menggunakan dashboard untuk memverifikasi hasil analisis, membuat laporan, memperbarui data model, dan mengelola konten.
 
 Mawas berfokus pada **sektor pertanian**. Skor risiko adalah **indikasi awal (bukan prakiraan presisi)**, dan seluruh antarmuka dibuat agar tidak mengklaim lebih dari yang didukung data (lihat [Keterbatasan](#keterbatasan)).
 
