@@ -329,7 +329,7 @@ Pada development **tidak perlu** file `.env`. Vite meneruskan request `/api/*` k
 Untuk production, atur variabel berikut di Vercel:
 
 ```env
-VITE_API_URL=https://your-backend-url.vercel.app
+VITE_API_URL=https://mawas-web-app.vercel.app/
 ```
 
 Isi dengan origin Backend tanpa akhiran `/api`. Jangan mengatur `VITE_API_URL` pada development lokal.
