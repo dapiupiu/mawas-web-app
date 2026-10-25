@@ -26,7 +26,7 @@
 <a href="#cara-menjalankan-aplikasi">Cara Menjalankan</a> •
 <a href="./ml-service/docs/kontrak_output_model.md">Kontrak Output Model</a> •
 <a href="./ml-service/docs/spesifikasi_genai.md">Spesifikasi GenAI</a> •
-<a href="./ml-service/docs/alur_skrip.md">Alur Skrip ML</a> • •
+<a href="./ml-service/docs/alur_skrip.md">Alur Skrip ML</a> •
 <a href="./FrontEnd/design.md">Arah Desain</a>
 </p>
 
@@ -35,6 +35,7 @@
 ## Table of Contents
 
 - [Deskripsi Singkat Proyek](#deskripsi-singkat-proyek)
+- [Tautan Penting](#tautan-penting)
 - [Project Components](#project-components)
 - [Fitur Utama](#fitur-utama)
 - [Tech Stack](#tech-stack)
@@ -55,6 +56,7 @@
 - [Keterbatasan](#keterbatasan)
 - [Saran Pengembangan](#saran-pengembangan)
 - [Dokumen Pendukung](#dokumen-pendukung)
+- [Tim Pengembang](#tim-pengembang)
 - [Deliverables](#deliverables)
 
 ---
@@ -66,6 +68,19 @@ Mawas adalah aplikasi web full-stack yang menampilkan indikasi risiko kekeringan
 Publik dapat membaca peta risiko, status wilayah, dan artikel edukasi tanpa login, serta melihat analisis teks GenAI yang menjelaskan kondisi tiap kabupaten dalam bahasa Indonesia sederhana. Operator dan Superadmin menggunakan dashboard untuk memverifikasi hasil analisis, membuat laporan, memperbarui data model, dan mengelola konten.
 
 Mawas berfokus pada **sektor pertanian**. Skor risiko adalah **indikasi awal (bukan prakiraan presisi)**, dan seluruh antarmuka dibuat agar tidak mengklaim lebih dari yang didukung data (lihat [Keterbatasan](#keterbatasan)).
+
+---
+
+## Tautan Penting
+
+| Item | Tautan |
+|---|---|
+| Website | [mawas-web-app.vercel.app](https://mawas-web-app.vercel.app/) |
+| Backend API | [mawas-web-app-axmu.vercel.app](https://mawas-web-app-axmu.vercel.app/) |
+| Source Code | [github.com/dapiupiu/mawas-web-app](https://github.com/dapiupiu/mawas-web-app) |
+| Video Demo | [s.id/videodemomawas](https://s.id/videodemomawas) |
+| PageSpeed Insights | [Hasil pengujian](https://pagespeed.web.dev/analysis/https-mawas-web-app-vercel-app/j44sp0adsi?form_factor=desktop) |
+| CodeFactor | [Hasil analisis kode](https://www.codefactor.io/repository/github/dapiupiu/mawas-web-app) |
 
 ---
 
@@ -793,6 +808,20 @@ Informasi berikut juga dicantumkan pada antarmuka agar klaim Mawas tetap jujur:
 | Data Contoh | [`ml-service/dummy/README.md`](./ml-service/dummy/README.md) |
 | Arah Desain Frontend | [`FrontEnd/design.md`](./FrontEnd/design.md) |
 | Aturan Kerja Frontend | `FrontEnd/agents.md` |
+
+---
+
+## Tim Pengembang
+
+**Tim Birokrasi Async**, Universitas Islam Negeri Sumatera Utara.
+Proyek ini dikembangkan untuk Lomba Web Development IT Fest 2026 dengan tema *Pelayanan Publik dalam Skala Besar*.
+
+| No | Nama | Peran | GitHub |
+|---|---|---|---|
+| 1 | Kaka Davi Dharmawan | Ketua; Data Scientist & ML/AI Engineer | [@dapiupiu](https://github.com/dapiupiu) |
+| 2 | Dodyk Fahlome | Backend | [@dymef15](https://github.com/dymef15) |
+| 3 | Adli Rahman Harun Harahap | Frontend | [@adliharahap](https://github.com/adliharahap) |
+| 4 | Haidar Al-mutawalli | Desain & Dokumentasi | [@HiroAozora](https://github.com/HiroAozora) |
 
 ---
 
