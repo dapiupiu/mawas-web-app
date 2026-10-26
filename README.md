@@ -268,6 +268,7 @@ Backend meminta analisis GenAI ke Groq (atau mengambil dari cache) untuk kabupat
 ↓
 Frontend menampilkan skor, kategori, faktor penyebab, analisis GenAI, dan laporan
 ```
+Alur di atas menggambarkan perjalanan data. Untuk langkah penggunaan dashboard per peran, lihat [Alur Penggunaan per Peran](#alur-penggunaan-per-peran).
 
 ---
 
@@ -347,7 +348,7 @@ Pada development **tidak perlu** file `.env`. Vite meneruskan request `/api/*` k
 Untuk production, atur variabel berikut di Vercel:
 
 ```env
-VITE_API_URL=https://mawas-web-app.vercel.app/
+VITE_API_URL=https://mawas-web-app-axmu.vercel.app
 ```
 
 Isi dengan origin Backend tanpa akhiran `/api`. Jangan mengatur `VITE_API_URL` pada development lokal.
@@ -387,7 +388,14 @@ GROQ_API_KEY=isi_di_sini_dengan_key_anda_dari_console.groq.com
 
 ### Akun dan Role
 
-Role disimpan di `user_metadata.role` pada Supabase Auth dengan nilai `superadmin` atau `operator`. Buat akun Superadmin pertama langsung dari dashboard Supabase, lalu buat akun operator lewat menu **Manajemen Akun**.
+Role disimpan di `user_metadata.role` pada Supabase Auth dengan nilai `superadmin` atau `operator`. Registrasi mandiri dinonaktifkan, jadi akun Superadmin pertama harus dibuat manual:
+
+1. Buka dashboard Supabase, lalu masuk ke **Authentication → Users → Add user**.
+2. Isi email dan password, lalu aktifkan opsi auto-confirm.
+3. Ubah `user_metadata` akun tersebut menjadi `{ "role": "superadmin" }`.
+4. Login di `/signin`, lalu buat akun operator lewat menu **Manajemen Akun** di dashboard.
+
+Akun demo untuk penilaian tersedia di bagian [Akun Demo](#akun-demo).
 
 ### Mengisi Data Awal
 
@@ -599,6 +607,53 @@ Token autentikasi diverifikasi ke Supabase pada setiap request terproteksi. Akun
 
 ---
 
+## Alur Penggunaan per Peran
+
+### Alur Operator
+
+1. Login di `/signin` menggunakan akun operator yang dibuat oleh Superadmin (email dan password, atau Google OAuth).
+2. Sistem mengarahkan ke `/dashboard`. Buka **Ringkasan Wilayah** untuk melihat sebaran kategori risiko dan status verifikasi.
+3. Buka **Pusat Verifikasi**, pilih kabupaten/kota, lalu verifikasi atau koreksi hasil model dan tambahkan catatan. Status verifikasi yang tersedia: `menunggu`, `terverifikasi`, `perlu_cek`.
+4. Buka **Generator Laporan** untuk membuat laporan resmi sebagai dasar rekomendasi tindak lanjut.
+5. Saat ada output model baru, buka **Pembaruan Model ML**, unggah file JSON, tunggu validasi struktur, lalu perbarui data di database.
+6. Kelola data produksi pangan dan intervensi mitigasi.
+7. Ubah nama, foto profil, dan password lewat menu profil.
+
+### Alur Superadmin
+
+Superadmin dapat melakukan seluruh alur Operator di atas, ditambah:
+
+1. Login di `/signin` menggunakan akun Superadmin, lalu masuk ke `/dashboard`.
+2. **Manajemen Akun**: membuat akun operator baru, menonaktifkan, mereset password, atau menghapus operator. Karena registrasi mandiri dinonaktifkan, semua operator harus dibuat lewat menu ini.
+3. **CMS Panduan & Edukasi**: membuat artikel (draft), mengubah, menerbitkan, menghapus, dan mengunggah gambar. Artikel berstatus `published` tampil untuk publik di portal artikel.
+
+---
+
+## Akun Demo
+
+Akun berikut disediakan untuk keperluan penilaian lomba. Login melalui [halaman login](https://mawas-web-app.vercel.app/signin) menggunakan email dan password di bawah ini.
+
+| Peran | Email | Password |
+|---|---|---|
+| Superadmin | `superadmin@gmail.com` | `superadmin` |
+| Operator | `operator5@gmail.com` | `operator123456` |
+
+> Akun demo ini bersifat sementara dan akan dinonaktifkan setelah periode penilaian selesai. Superadmin dapat mengelola akun operator dan artikel, sedangkan Operator dapat memverifikasi data, membuat laporan, dan memperbarui data model. Rincian alur tiap peran ada di [Alur Penggunaan per Peran](#alur-penggunaan-per-peran).
+
+### Ringkasan Perbedaan Akses
+
+| Fitur | Operator | Superadmin |
+|---|:---:|:---:|
+| Ringkasan Wilayah | ✅ | ✅ |
+| Pusat Verifikasi | ✅ | ✅ |
+| Generator Laporan | ✅ | ✅ |
+| Pembaruan Model ML | ✅ | ✅ |
+| Data produksi dan intervensi | ✅ | ✅ |
+| CMS Panduan & Edukasi | ❌ | ✅ |
+| Manajemen Akun | ❌ | ✅ |
+
+---
+
 ## Dokumentasi API
 
 Base URL lokal:
@@ -744,6 +799,7 @@ VITE_API_URL=https://your-backend-url.vercel.app
 - Akses tulis ke data produksi, intervensi, verifikasi, dan import prediksi dibatasi oleh RBAC (`operator`/`superadmin`).
 - Frontend tidak memanggil Groq secara langsung.
 - Output GenAI divalidasi sebelum ditampilkan dan tidak boleh memuat angka di luar data.
+- Akun pada bagian [Akun Demo](#akun-demo) hanya untuk penilaian lomba dan akan dinonaktifkan setelahnya.
 
 ---
 
