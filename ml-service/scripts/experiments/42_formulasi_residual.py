@@ -1,9 +1,12 @@
+﻿import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 # %% load data
 import pandas as pd
 from sklearn.metrics import r2_score
 from xgboost import XGBRegressor
 
-from model_utils import (
+from scripts.model_utils import (
     muat_tabel,
     bagi_latih_uji,
     ukur_ranking,

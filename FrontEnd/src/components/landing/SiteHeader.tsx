@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ArrowUpRight,
@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 import { ProvinceSearchInput } from "@/components/landing/ProvinceSearchInput";
+import { scrollToSection } from "@/lib/scrollToSection";
 
 const navigation = [
   { label: "Peta risiko", href: "/peta-risiko", route: true },
@@ -25,7 +26,9 @@ const ease = [0.22, 1, 0.36, 1] as const;
 export function SiteHeader() {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [pendingMobileSection, setPendingMobileSection] = useState<string | null>(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
@@ -40,6 +43,29 @@ export function SiteHeader() {
 
   const closeMenu = () => setIsOpen(false);
   const isRiskPage = location.pathname === "/peta-risiko";
+  const navigateToSection = (href: string) => {
+    const sectionId = href.slice(1);
+    closeMenu();
+    if (location.pathname === "/") {
+      navigate({ pathname: "/", hash: href });
+      scrollToSection(sectionId);
+      return;
+    }
+    navigate(`/${href}`);
+  };
+
+  const navigateFromMobileMenu = (href: string) => {
+    const sectionId = href.slice(1);
+    if (location.pathname !== "/") {
+      closeMenu();
+      navigate(`/${href}`);
+      return;
+    }
+
+    window.history.pushState(null, "", href);
+    setPendingMobileSection(sectionId);
+    closeMenu();
+  };
 
   const motionProps = shouldReduceMotion
     ? {}
@@ -130,7 +156,10 @@ export function SiteHeader() {
               <a
                 key={item.href}
                 href={hashHref}
-                onClick={closeMenu}
+                onClick={(event) => {
+                  event.preventDefault();
+                  navigateToSection(item.href);
+                }}
                 className={className}
               >
                 {content}
@@ -193,7 +222,16 @@ export function SiteHeader() {
       </div>
 
       {/* Mobile navigation */}
-      <AnimatePresence initial={false}>
+      <AnimatePresence
+        initial={false}
+        onExitComplete={() => {
+          if (!pendingMobileSection) return;
+          window.requestAnimationFrame(() => {
+            scrollToSection(pendingMobileSection);
+            setPendingMobileSection(null);
+          });
+        }}
+      >
         {isOpen && (
           <motion.nav
             id="mobile-navigation"
@@ -220,10 +258,10 @@ export function SiteHeader() {
                     newParams.set("prov", prov);
                     window.history.pushState(null, "", `/?${newParams.toString()}`);
                     window.dispatchEvent(new Event("popstate"));
-                    const targetElement = document.getElementById("status-wilayah");
-                    if (targetElement) {
-                      targetElement.scrollIntoView({ behavior: "smooth" });
-                    }
+                    window.setTimeout(
+                      () => scrollToSection("status-wilayah"),
+                      shouldReduceMotion ? 0 : 300,
+                    );
                   }}
                 />
               </div>
@@ -274,7 +312,10 @@ export function SiteHeader() {
                             ? item.href
                             : `/${item.href}`
                         }
-                        onClick={closeMenu}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          navigateFromMobileMenu(item.href);
+                        }}
                         className={linkClass}
                       >
                         {content}

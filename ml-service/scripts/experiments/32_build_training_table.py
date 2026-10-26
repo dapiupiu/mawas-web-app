@@ -1,5 +1,8 @@
+﻿import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import pandas as pd
-from fitur_utils import tambah_target_dan_lag_fapar, tambah_lag
+from scripts.fitur_utils import tambah_target_dan_lag_fapar, tambah_lag
 
 HORIZON = 3
 OUT = "data/training/tabel_training.parquet"

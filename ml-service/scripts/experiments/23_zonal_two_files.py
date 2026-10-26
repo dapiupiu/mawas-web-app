@@ -1,6 +1,9 @@
+﻿import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from pathlib import Path
 import rasterio
-from fapar_utils import baca_fapar, bersihkan_fapar, buat_mask_kabupaten, hitung_zonal
+from scripts.fapar_utils import baca_fapar, bersihkan_fapar, buat_mask_kabupaten, hitung_zonal
 
 GEOJSON = "data/geojson/kabupaten_clean.geojson"
 files = sorted(Path("data/FAPAR").rglob("*.tif"))
